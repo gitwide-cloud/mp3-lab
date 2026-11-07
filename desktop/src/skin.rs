@@ -9,12 +9,15 @@ fn gradient(p:&egui::Painter,r:Rect,top:C,bottom:C){
     m.indices=vec![0,1,2,2,1,3];p.add(egui::Shape::mesh(m));
 }
 fn panel<R>(ui:&mut egui::Ui,body:impl FnOnce(&mut egui::Ui)->R)->egui::InnerResponse<R>{
+    panel_tinted(ui,C::from_rgb(52,56,63),C::from_rgb(25,28,33),body)
+}
+fn panel_tinted<R>(ui:&mut egui::Ui,top:C,bottom:C,body:impl FnOnce(&mut egui::Ui)->R)->egui::InnerResponse<R>{
     let bg=ui.painter().add(egui::Shape::Noop);
-    let result=egui::Frame::new().inner_margin(10).outer_margin(2).corner_radius(5).stroke(Stroke::new(1.0,C::from_gray(119))).show(ui,|ui|{
+    let result=egui::Frame::new().inner_margin(8).outer_margin(2).corner_radius(5).stroke(Stroke::new(1.0,C::from_gray(119))).show(ui,|ui|{
         ui.with_layout(egui::Layout::top_down(egui::Align::Min),|ui|{ui.set_min_width(ui.available_width());body(ui)}).inner
     });
     let r=result.response.rect;let mut m=egui::Mesh::default();
-    for(pos,col) in [(r.left_top(),C::from_rgb(52,56,63)),(r.right_top(),C::from_rgb(52,56,63)),(r.left_bottom(),C::from_rgb(25,28,33)),(r.right_bottom(),C::from_rgb(25,28,33))]{m.colored_vertex(pos,col);}
+    for(pos,col) in [(r.left_top(),top),(r.right_top(),top),(r.left_bottom(),bottom),(r.right_bottom(),bottom)]{m.colored_vertex(pos,col);}
     m.indices=vec![0,1,2,2,1,3];ui.painter().set(bg,egui::Shape::mesh(m));
     ui.painter().line_segment([r.left_bottom()+egui::vec2(2.0,-2.0),r.right_bottom()+egui::vec2(-2.0,-2.0)],Stroke::new(1.0,C::BLACK));result
 }
@@ -55,14 +58,14 @@ pub fn configure(ctx:&egui::Context){
     v.override_text_color=Some(C::from_rgb(236,237,232));v.selection.bg_fill=C::from_rgb(39,88,198);v.selection.stroke=Stroke::new(1.0,BLUE);
     for w in [&mut v.widgets.inactive,&mut v.widgets.hovered,&mut v.widgets.active]{w.corner_radius=2.into();w.bg_stroke=Stroke::new(1.0,C::from_gray(103));}
     v.widgets.inactive.bg_fill=C::from_rgb(14,18,23);v.widgets.active.bg_fill=C::from_rgb(48,92,192);v.widgets.hovered.bg_fill=C::from_rgb(50,58,72);
-    style.visuals=v;style.spacing.item_spacing=egui::vec2(8.0,7.0);style.spacing.interact_size.y=27.0;style.spacing.slider_width=170.0;
+    style.visuals=v;style.spacing.item_spacing=egui::vec2(8.0,5.0);style.spacing.interact_size.y=25.0;style.spacing.slider_width=170.0;
     style.text_styles.insert(egui::TextStyle::Body,FontId::proportional(16.0));style.text_styles.insert(egui::TextStyle::Button,FontId::proportional(16.0));ctx.set_global_style(style);
 }
 pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
     let ctx=ui.ctx().clone();
     egui::CentralPanel::default().frame(egui::Frame::new().fill(C::from_rgb(13,16,22)).inner_margin(7)).show(ui,|ui|{
       egui::ScrollArea::vertical().show(ui,|ui|{
-        let header=panel(ui,|ui|{
+        let header=panel_tinted(ui,C::from_rgb(23,31,52),C::from_rgb(3,7,20),|ui|{
             ui.horizontal(|ui|{
                 let(r,_)=ui.allocate_exact_size(egui::vec2(300.0,48.0),egui::Sense::hover());
                 ui.painter().text(r.left_top()+egui::vec2(0.0,0.0),Align2::LEFT_TOP,"MP3",FontId::new(46.0,egui::FontFamily::Name("brand".into())),C::from_gray(231));
@@ -128,7 +131,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
                     ui.label("Start:");ui.add(egui::DragValue::new(&mut e.start).speed(0.05).range(0.0..=e.duration).fixed_decimals(3).suffix(" s"));ui.end_row();
                     ui.label("End:");ui.add(egui::DragValue::new(&mut e.end).speed(0.05).range(0.0..=e.duration).fixed_decimals(3).suffix(" s"));ui.end_row();
                     ui.label("Length:");ui.label(RichText::new(clock(e.length())).monospace());ui.end_row();
-                });ui.add_space(18.0);
+                });ui.add_space(14.0);
             });e.clamp();let len=e.length();
             panel(&mut cols[1],|ui|{heading(ui,"Fades");
                 egui::Grid::new("fades").spacing([10.0,11.0]).show(ui,|ui|{
@@ -141,7 +144,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
                 ui.horizontal(|ui|{ui.label("Gain:");ui.add(egui::DragValue::new(&mut e.gain).speed(0.1).range(-24.0..=12.0).fixed_decimals(1).suffix(" dB"));});
                 ui.add(egui::Slider::new(&mut e.gain,-24.0..=12.0).show_value(false));
                 let peak=e.peak_db.map(|v|format!("Peak: {v:.1} dBFS")).unwrap_or_else(||"Peak: —".into());
-                if ui.small_button("Analyze").clicked(){e.status=peak.clone();}ui.label(RichText::new(peak).monospace().color(GREEN));
+                ui.horizontal(|ui|{if ui.small_button("Analyze").clicked(){e.status=peak.clone();}ui.label(RichText::new(peak).monospace().size(13.0).color(GREEN));});
             });
           });
         });
@@ -162,7 +165,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
     if e.show_tools{egui::Window::new("Audio tools").open(&mut e.show_tools).show(&ctx,|ui|{for n in ["ffmpeg","ffprobe","ffplay"]{ui.label(format!("{n}: {}",tool(n).display()));}ui.label("Windows builds include all three tools. Licenses and source code accompany the release.");});}
 }
 fn waveform(e:&mut Editor,ui:&mut egui::Ui){
-    let(r,response)=ui.allocate_exact_size(egui::vec2(ui.available_width(),166.0),egui::Sense::click_and_drag());
+    let(r,response)=ui.allocate_exact_size(egui::vec2(ui.available_width(),156.0),egui::Sense::click_and_drag());
     let wave=Rect::from_min_max(r.min,r.max-egui::vec2(0.0,26.0));ui.painter().rect_filled(wave,4.0,C::from_rgb(0,12,4));
     for i in 1..12{let x=wave.left()+i as f32*wave.width()/12.0;ui.painter().vline(x,wave.y_range(),Stroke::new(0.5,C::from_rgb(15,40,21)));}
     if e.duration>0.0{
