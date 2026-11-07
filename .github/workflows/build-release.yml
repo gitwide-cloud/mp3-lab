@@ -152,7 +152,8 @@ jobs:
           path: dist
       - name: Verify all three downloads
         run: |
-          test -s dist/mp3-lab-windows.zip
+          # Windows ZIP is an internal installer staging/test artifact.
+          rm -f dist/mp3-lab-windows.zip
           test -s dist/mp3-lab-linux.zip
           test -s dist/mp3-lab.apk
           test -s dist/mp3-lab-setup.exe
@@ -171,4 +172,4 @@ jobs:
         run: |
           gh release create "v0.2.0-preview.${{ github.run_number }}" dist/* \
             --target "${{ github.sha }}" --title "mp3⚡lab v0.2.0 preview ${{ github.run_number }}" --prerelease \
-            --notes "Reference-inspired metallic player skin, real waveform and supplied app icon. Windows installer and portable ZIP include FFmpeg, FFprobe and FFplay; no separate audio-tool installation required. Windows portable and installed audio tools are tested with a system-only PATH. Linux ZIP requires system FFmpeg and desktop libraries. Rust tests, audio export tests, desktop screenshot check and Android lint pass in CI. Android ARM64 is debug-signed for sideloading; updates may require uninstalling a preview with a different key. Dependency notices and corresponding audio sources are included. Verify downloads with SHA256SUMS.txt."
+            --notes "Reference-inspired metallic player skin, real waveform and supplied app icon. Windows users: download mp3-lab-setup.exe. The installer includes FFmpeg, FFprobe and FFplay; no separate audio-tool installation is required. The installed application is the current Windows priority; portable development is deferred. Installed audio tools are tested with a system-only PATH. Linux ZIP requires system FFmpeg and desktop libraries. Rust tests, audio export tests, desktop screenshot check and Android lint pass in CI. Android ARM64 is debug-signed for sideloading; updates may require uninstalling a preview with a different key. Dependency notices and corresponding audio sources are included. Verify downloads with SHA256SUMS.txt."

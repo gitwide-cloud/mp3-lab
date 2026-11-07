@@ -10,9 +10,10 @@ Free, open-source clip editor with a retro Winamp-inspired interface. MP3 Lab ha
 
 Every push to `main` starts GitHub Actions jobs for Windows, Linux and Android. A versioned `v0.2.0-preview.N` release is published **only if all three builds and required checks succeed**. Existing releases are preserved. Check [Actions](https://github.com/gitwide-cloud/mp3-lab/actions) for results. These are preview builds.
 
-Expected files:
+**Windows: download `mp3-lab-setup.exe` and install the app.** The current priority is verifying the installed Windows application. Portable development is deferred until that workflow is working reliably.
+
+Release files:
 - `mp3-lab-setup.exe`: Windows 10/11 x64 installer, including all audio tools
-- `mp3-lab-windows.zip`: self-contained portable Windows folder; extract all files and run `mp3-lab.exe`
 - `windows-audio-sources.tar.gz`: corresponding sources and build recipe for bundled Windows audio tools
 - `mp3-lab-linux.zip`: Linux desktop executable
 - `mp3-lab.apk`: Android ARM64 debug-signed installer (Android 8+)
@@ -37,7 +38,7 @@ cd desktop
 cargo build --release
 ```
 
-Published Windows downloads include `ffmpeg.exe`, `ffprobe.exe` and `ffplay.exe`; neither a separate FFmpeg installation nor a Visual C++ runtime installer is needed. The installer creates shortcuts and an uninstaller without requiring administrator rights. The portable ZIP can run from an extracted folder without installation.
+Published Windows downloads include `ffmpeg.exe`, `ffprobe.exe` and `ffplay.exe`; neither a separate FFmpeg installation nor a Visual C++ runtime installer is needed. The installer creates shortcuts and an uninstaller without requiring administrator rights.
 
 For local source builds and Linux, install FFmpeg with `ffmpeg`, `ffprobe` and `ffplay` available on PATH. On Ubuntu, install `ffmpeg libxkbcommon-x11-0 libegl1 libgl1 libx11-6`. A desktop session with OpenGL support is required.
 
