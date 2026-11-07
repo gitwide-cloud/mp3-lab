@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
         if(fadeInBar!=null)fadeInBar.setProgress((int)(fadeIn/30*1000));
         if(fadeOutBar!=null)fadeOutBar.setProgress((int)(fadeOut/30*1000));
         if(duration>0){inBar.setProgress((int)(start/duration*1000));outBar.setProgress((int)(end/duration*1000));}
-        if(clock!=null)clock.setText("IN "+time(start)+"   OUT "+time(end)+"   LENGTH "+time(len));
+        if(clock!=null)clock.setText(time(start)+" / "+time(duration));
         if(fadeInLabel!=null)fadeInLabel.setText(String.format(Locale.US,"Fade in: %.1f seconds",fadeIn));
         if(fadeOutLabel!=null)fadeOutLabel.setText(String.format(Locale.US,"Fade out: %.1f seconds",fadeOut));
         if(gainLabel!=null)gainLabel.setText(String.format(Locale.US,"Gain: %+.1f dB",gainDb));

@@ -28,6 +28,11 @@ public class AudioEngineTest {
                 f.setDouble(activity, field.equals("start")?2:field.equals("end")?6:field.equals("gainDb")?-3:0.5);
             }
             java.lang.reflect.Field in=MainActivity.class.getDeclaredField("input");in.setAccessible(true);in.set(activity,source);
+            activity.duration=8;activity.waveform=activity.readWaveform(source,8);
+            assertEquals(1200,activity.waveform.length);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+                activity.filename.setText("Skin-check.wav");activity.refresh();activity.status.setText("Ready. Audio engine verified.");
+            });
             java.lang.reflect.Field norm=MainActivity.class.getDeclaredField("normalize");norm.setAccessible(true);
             InstrumentationRegistry.getInstrumentation().runOnMainSync(()->((android.widget.CheckBox)get(norm,activity)).setChecked(true));
             java.lang.reflect.Method cmd=MainActivity.class.getDeclaredMethod("command",File.class,boolean.class);cmd.setAccessible(true);
@@ -45,6 +50,12 @@ public class AudioEngineTest {
             assertTrue("Fade in must attenuate opening",rms(samples,0,0.1)<middle*0.4);
             assertTrue("Fade out must attenuate ending",rms(samples,3.9,4)<middle*0.4);
             pcm.delete();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+                android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(activity.root.getWidth(),activity.root.getHeight(),android.graphics.Bitmap.Config.ARGB_8888);
+                activity.root.draw(new android.graphics.Canvas(bitmap));
+                try(java.io.FileOutputStream image=new java.io.FileOutputStream(new File(activity.getExternalFilesDir(null),"android-skin.png"))){bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,image);}catch(Exception e){throw new RuntimeException(e);}
+                bitmap.recycle();
+            });
             android.media.MediaPlayer player=new android.media.MediaPlayer();
             player.setDataSource(output.toString());player.prepare();player.start();
             assertTrue(player.isPlaying());player.stop();player.release();
