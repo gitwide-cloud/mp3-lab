@@ -7,6 +7,10 @@ with zipfile.ZipFile(root/f'mp3-lab-{platform}.zip','w',zipfile.ZIP_DEFLATED,str
     z.write(root/'desktop/target/release'/binary,binary)
     for name in ['README.md','LICENSE','THIRD_PARTY_NOTICES.md']:z.write(root/name,name)
     z.write(root/'desktop/Cargo.lock','Cargo.lock')
+    if platform=='windows':
+        z.write(root/'assets/mp3-lab.ico','mp3-lab.ico')
+        for f in (root/'windows-runtime').rglob('*'):
+            if f.is_file():z.write(f,f.relative_to(root/'windows-runtime').as_posix())
     index=[]
     for p in metadata['packages']:
         base=pathlib.Path(p['manifest_path']).parent
@@ -15,3 +19,5 @@ with zipfile.ZipFile(root/f'mp3-lab-{platform}.zip','w',zipfile.ZIP_DEFLATED,str
             if f.is_file() and any(f.name.upper().startswith(s) for s in ['LICENSE','COPYING','NOTICE','COPYRIGHT']):
                 z.write(f,f"licenses/{p['name']}-{p['version']}/{f.relative_to(base).as_posix()}")
     z.writestr('licenses/dependencies.json',json.dumps(index,indent=2))
+if platform=='windows':
+    with zipfile.ZipFile(root/'mp3-lab-windows.zip') as z:z.extractall(root/'windows-package')

@@ -7,4 +7,8 @@ android/**/build/
 dist/
 audio-build/
 windows-runtime/
+windows-package/
+mp3-lab-*.zip
+mp3-lab-setup.exe
+desktop-skin.png
 android/app/src/main/assets/licenses/
