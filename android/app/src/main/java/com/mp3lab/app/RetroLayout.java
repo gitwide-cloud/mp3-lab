@@ -11,9 +11,7 @@ final class RetroLayout {
         ScrollView scroll=new ScrollView(a);scroll.setFillViewport(true);scroll.setBackgroundColor(0xff11151c);
         a.root=a.column();a.root.setPadding(a.dp(8),a.dp(10),a.dp(8),a.dp(16));scroll.addView(a.root);
         a.root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(a.dp(8)+i.getSystemWindowInsetLeft(),a.dp(10)+i.getSystemWindowInsetTop(),a.dp(8)+i.getSystemWindowInsetRight(),a.dp(16)+i.getSystemWindowInsetBottom());return i;});
-        TextView brand=a.label("MP3ϟlab",35,0xffe9eaed);brand.setTypeface(Typeface.create("sans-serif",Typeface.BOLD_ITALIC));
-        brand.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xff182039,0xff030714}));
-        a.add(a.root,brand);
+        a.root.addView(new Retro.Brand(a),new LinearLayout.LayoutParams(-1,a.dp(56)));
         LinearLayout menu=new LinearLayout(a);menu.setBackground(Retro.plate(false));
         String[] titles={"File","Edit","Tools","Help"};
         for(int n=0;n<titles.length;n++){
@@ -23,9 +21,10 @@ final class RetroLayout {
                 else if(which==2)a.licenses("licenses");else about(a);});
         }a.add(a.root,menu);
         LinearLayout display=a.column();display.setPadding(a.dp(10),a.dp(5),a.dp(10),a.dp(5));display.setBackgroundColor(Retro.INK);
-        a.clock=a.label("0:00.000 / 0:00.000",25,Retro.LED);a.clock.setTypeface(Typeface.MONOSPACE);
+        a.clock=a.label("0:00.000 / 0:00.000",23,Retro.LED);a.clock.setTypeface(Typeface.MONOSPACE);
         a.filename=a.label("NO TRACK LOADED",18,Retro.LED);a.add(display,a.clock);a.add(display,a.filename);
-        a.add(display,a.label("MP3   256 kbps   •   LOCAL AUDIO",12,Retro.LED));a.addSection("PLAYER",display);
+        a.add(display,a.label("MP3   256 kbps export   •   LOCAL AUDIO",12,Retro.LED));
+        a.meter=new Retro.Meter(a);display.addView(a.meter,new LinearLayout.LayoutParams(-1,a.dp(34)));a.addSection("PLAYER",display);
         LinearLayout transport=new LinearLayout(a);transport.setPadding(a.dp(3),a.dp(6),a.dp(3),a.dp(6));transport.setBackground(Retro.plate(false));
         String[] controls={"Open","A/B","▶","Ⅱ","■"};
         for(int n=0;n<controls.length;n++){
@@ -39,17 +38,20 @@ final class RetroLayout {
         a.waveformView=new Retro.Wave(a);a.waveformView.selection=(start,end)->{a.start=start;a.end=end;a.refresh();};
         LinearLayout waveBox=a.column();waveBox.setPadding(a.dp(5),a.dp(6),a.dp(5),a.dp(5));waveBox.setBackground(Retro.plate(false));
         waveBox.addView(a.waveformView,new LinearLayout.LayoutParams(-1,a.dp(156)));a.add(a.root,waveBox);
-        LinearLayout clip=a.column();a.clipLabel=a.label("Start 0:00   End 0:00",16,Color.WHITE);a.add(clip,a.clipLabel);
+        LinearLayout clip=a.column();a.clipLabel=a.label("Start 0:00   End 0:00",16,Color.WHITE);a.clipLabel.setTypeface(Typeface.MONOSPACE);a.clipLabel.setBackgroundColor(0xff090d12);a.add(clip,a.clipLabel);
+        a.clipLabel.setOnClickListener(v->new android.app.AlertDialog.Builder(a).setTitle("Trim time").setItems(new String[]{"Start","End"},(d,index)->{
+            if(index==0)number(a,"Clip start",a.start,0,a.duration,x->{a.start=Math.min(x,a.end);a.refresh();});else number(a,"Clip end",a.end,a.start,a.duration,x->{a.end=x;a.refresh();});}).show());
         TextView in=a.label("Start  •  tap to enter seconds",13,0xffc1c6cd);in.setOnClickListener(v->number(a,"Clip start",a.start,0,a.duration,x->{a.start=Math.min(x,a.end);a.refresh();}));a.add(clip,in);
         a.inBar=a.seek(clip,0,p->{a.start=Math.min(a.end,a.duration*p/1000);a.refresh();});
         TextView out=a.label("End  •  tap to enter seconds",13,0xffc1c6cd);out.setOnClickListener(v->number(a,"Clip end",a.end,a.start,a.duration,x->{a.end=x;a.refresh();}));a.add(clip,out);
-        a.outBar=a.seek(clip,1000,p->{a.end=Math.max(a.start,a.duration*p/1000);a.refresh();});a.addSection("Clip",clip);
-        LinearLayout fades=a.column();a.fadeInLabel=a.label("Fade In: 0.00 s",16,Color.WHITE);a.add(fades,a.fadeInLabel);
+        a.outBar=a.seek(clip,1000,p->{a.end=Math.max(a.start,a.duration*p/1000);a.refresh();});in.setVisibility(View.GONE);out.setVisibility(View.GONE);a.inBar.setVisibility(View.GONE);a.outBar.setVisibility(View.GONE);a.add(clip,a.label("Drag yellow handles or tap times to edit",12,0xffb0bac5));a.addSection("Clip",clip);
+        LinearLayout fades=new LinearLayout(a),fadeInGroup=a.column(),fadeOutGroup=a.column();fades.addView(fadeInGroup,new LinearLayout.LayoutParams(0,-2,1));fades.addView(fadeOutGroup,new LinearLayout.LayoutParams(0,-2,1));
+        a.fadeInLabel=a.label("Fade In: 0.00 s",15,Color.WHITE);a.add(fadeInGroup,a.fadeInLabel);
         a.fadeInLabel.setOnClickListener(v->number(a,"Fade in",a.fadeIn,0,a.end-a.start,x->{a.fadeIn=x;a.refresh();}));
-        a.fadeInBar=a.seek(fades,0,p->{a.fadeIn=30*p/1000.0;a.refresh();});
-        a.fadeOutLabel=a.label("Fade Out: 0.00 s",16,Color.WHITE);a.add(fades,a.fadeOutLabel);
+        a.fadeInBar=a.seek(fadeInGroup,0,p->{a.fadeIn=30*p/1000.0;a.refresh();});
+        a.fadeOutLabel=a.label("Fade Out: 0.00 s",15,Color.WHITE);a.add(fadeOutGroup,a.fadeOutLabel);
         a.fadeOutLabel.setOnClickListener(v->number(a,"Fade out",a.fadeOut,0,a.end-a.start-a.fadeIn,x->{a.fadeOut=x;a.refresh();}));
-        a.fadeOutBar=a.seek(fades,0,p->{a.fadeOut=30*p/1000.0;a.refresh();});a.addSection("Fades",fades);
+        a.fadeOutBar=a.seek(fadeOutGroup,0,p->{a.fadeOut=30*p/1000.0;a.refresh();});a.addSection("Fades",fades);
         LinearLayout gains=a.column();a.normalize=new CheckBox(a);a.normalize.setText("Normalize  (Target: −16.0 LUFS)");Retro.text(a.normalize);
         a.normalize.setButtonTintList(android.content.res.ColorStateList.valueOf(0xff4d83ff));a.add(gains,a.normalize);
         a.gainLabel=a.label("Gain: +0.0 dB",16,Color.WHITE);a.add(gains,a.gainLabel);

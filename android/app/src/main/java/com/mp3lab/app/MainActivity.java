@@ -37,16 +37,21 @@ public class MainActivity extends Activity {
     double peakDb=Double.NaN;
     TextView clipLabel;
     boolean editedPreview=true;
+    Retro.Meter meter;
+    final Runnable playbackTick=new Runnable(){public void run(){
+        if(player!=null&&waveformView!=null){try{waveformView.position=start+player.getCurrentPosition()/1000.0;waveformView.invalidate();clock.setText(time(waveformView.position)+" / "+time(duration));if(meter!=null)meter.invalidate();}catch(IllegalStateException ignored){}}
+        handler.postDelayed(this,80);
+    }};
     int dp(int x){return (int)(x*getResources().getDisplayMetrics().density);}
     TextView label(String text,int size,int color) {
-        TextView v=new TextView(this);v.setText(text);v.setTextSize(size);Retro.text(v);v.setTextColor(color);v.setPadding(dp(4),dp(7),dp(4),dp(7));return v;
+        TextView v=new TextView(this);v.setText(text);v.setTextSize(size);Retro.text(v);v.setTextColor(color);v.setPadding(dp(4),dp(4),dp(4),dp(4));return v;
     }
     LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     void add(LinearLayout l,View v){l.addView(v,new LinearLayout.LayoutParams(-1,-2));}
     void addSection(String heading,View body){
         LinearLayout block=column();block.setPadding(dp(10),dp(5),dp(10),dp(8));block.setBackground(Retro.plate(false));
         add(block,label(heading,16,0xff7ab6e8));add(block,body);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(10);root.addView(block,p);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(6);root.addView(block,p);
     }
     SeekBar seek(LinearLayout parent,int initial,java.util.function.IntConsumer callback){
         SeekBar b=new SeekBar(this);b.setMax(1000);b.setProgress(initial);
@@ -64,7 +69,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state){super.onCreate(state); RetroLayout.create(this);}
     String time(double s){
         int seconds=(int)Math.max(0,s);
-        return String.format(Locale.US,"%d:%02d",seconds/60,seconds%60);
+        return String.format(Locale.US,"%d:%06.3f",seconds/60,s-(seconds/60)*60);
     }
     void refresh(){
         if(end<start)end=start;
@@ -75,11 +80,12 @@ public class MainActivity extends Activity {
         if(fadeOutBar!=null)fadeOutBar.setProgress((int)(fadeOut/30*1000));
         if(duration>0){inBar.setProgress((int)(start/duration*1000));outBar.setProgress((int)(end/duration*1000));}
         if(clock!=null)clock.setText(time(start)+" / "+time(duration));
-        if(fadeInLabel!=null)fadeInLabel.setText(String.format(Locale.US,"Fade in: %.1f seconds",fadeIn));
-        if(fadeOutLabel!=null)fadeOutLabel.setText(String.format(Locale.US,"Fade out: %.1f seconds",fadeOut));
+        if(fadeInLabel!=null)fadeInLabel.setText(String.format(Locale.US,"Fade In  %.2f s",fadeIn));
+        if(fadeOutLabel!=null)fadeOutLabel.setText(String.format(Locale.US,"Fade Out  %.2f s",fadeOut));
         if(gainLabel!=null)gainLabel.setText(String.format(Locale.US,"Gain: %+.1f dB",gainDb));
-        if(clipLabel!=null)clipLabel.setText("Start "+time(start)+"   End "+time(end)+"   Length "+time(len));
+        if(clipLabel!=null)clipLabel.setText("Start    "+time(start)+"\nEnd      "+time(end)+"\nLength   "+time(len));
         if(waveformView!=null){waveformView.peaks=waveform;waveformView.duration=duration;waveformView.start=start;waveformView.end=end;waveformView.position=start;waveformView.invalidate();}
+        if(meter!=null)meter.invalidate();
     }
     void report(String msg){handler.post(()->status.setText(msg));}
     void licenses(String path){
@@ -218,4 +224,6 @@ public class MainActivity extends Activity {
         }finally{pcm.delete();}
     }
     @Override protected void onDestroy(){stop();super.onDestroy();}
+    @Override protected void onResume(){super.onResume();handler.post(playbackTick);}
+    @Override protected void onPause(){handler.removeCallbacks(playbackTick);super.onPause();}
 }
