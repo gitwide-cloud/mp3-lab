@@ -31,6 +31,7 @@ public class MainActivity extends Activity {
     private double duration=0,start=0,end=0,fadeIn=0,fadeOut=0,gainDb=0;
     private MediaPlayer player;
     private volatile boolean busy;
+    private volatile int previewGeneration;
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density);}
     private TextView label(String text,int size,int color) {
         TextView v=new TextView(this);v.setText(text);v.setTextSize(size);v.setTextColor(color);v.setPadding(dp(4),dp(7),dp(4),dp(7));return v;
@@ -59,6 +60,11 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);
         root=column();root.setPadding(dp(12),dp(15),dp(12),dp(25));scroll.addView(root);
+        root.setOnApplyWindowInsetsListener((view,insets)->{
+            view.setPadding(dp(12)+insets.getSystemWindowInsetLeft(),dp(15)+insets.getSystemWindowInsetTop(),
+                dp(12)+insets.getSystemWindowInsetRight(),dp(25)+insets.getSystemWindowInsetBottom());
+            return insets;
+        });
         add(root,label("mp3⚡lab",30,LED));add(root,label("CLASSIC PLAYER • MP3 256 KBPS",12,0xff7ab6e8));
         button(root,"📂 OPEN AUDIO",v->pick());
         LinearLayout display=column();display.setPadding(dp(12),dp(8),dp(12),dp(8));display.setBackgroundColor(0xff081b10);
@@ -100,6 +106,9 @@ public class MainActivity extends Activity {
         double len=Math.max(0,end-start);
         fadeIn=Math.min(fadeIn,len);
         fadeOut=Math.min(fadeOut,Math.max(0,len-fadeIn));
+        if(fadeInBar!=null)fadeInBar.setProgress((int)(fadeIn/30*1000));
+        if(fadeOutBar!=null)fadeOutBar.setProgress((int)(fadeOut/30*1000));
+        if(duration>0){inBar.setProgress((int)(start/duration*1000));outBar.setProgress((int)(end/duration*1000));}
         if(clock!=null)clock.setText("IN "+time(start)+"   OUT "+time(end)+"   LENGTH "+time(len));
         if(fadeInLabel!=null)fadeInLabel.setText(String.format(Locale.US,"Fade in: %.1f seconds",fadeIn));
         if(fadeOutLabel!=null)fadeOutLabel.setText(String.format(Locale.US,"Fade out: %.1f seconds",fadeOut));
@@ -181,12 +190,14 @@ public class MainActivity extends Activity {
         if(input==null||busy)return;
         if(end-start<.05){report("Choose a longer clip");return;}
         stop();busy=true;report("Preparing preview...");
+        int generation=previewGeneration;
         File dest=new File(getCacheDir(),"mp3_lab_preview.mp3");
         FFmpegKit.executeAsync(command(dest,edited),session->{
             if(!ReturnCode.isSuccess(session.getReturnCode())){
                 report("Preview encoding failed");busy=false;return;
             }
             handler.post(()->{
+                if(generation!=previewGeneration||isDestroyed()){busy=false;return;}
                 try{
                     player=new MediaPlayer();player.setDataSource(dest.getAbsolutePath());
                     player.prepare();player.setOnCompletionListener(mp->{stop();report("Preview finished");});
@@ -196,6 +207,7 @@ public class MainActivity extends Activity {
         });
     }
     private void stop(){
+        previewGeneration++;
         if(player!=null){try{player.stop();}catch(Exception ignored){}player.release();player=null;}
     }
     private void save(){

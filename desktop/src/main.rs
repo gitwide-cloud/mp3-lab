@@ -178,14 +178,14 @@ mod tests {
     use super::*;
     #[test]
     fn selection_keeps_fades_inside_clip() {
-        let mut e=Editor{duration:10.0,start:8.0,end:20.0,fade_in:4.0,fade_out:4.0,..Default::default()};
+        let mut e=Editor::default(); e.duration=10.0;e.start=8.0;e.end=20.0;e.fade_in=4.0;e.fade_out=4.0;
         e.clamp();
         assert_eq!((e.start,e.end,e.fade_in,e.fade_out),(8.0,10.0,2.0,0.0));
         e.start=11.0;e.clamp();assert_eq!(e.length(),0.0);
     }
     #[test]
     fn processing_order_and_relative_fade_position() {
-        let e=Editor{start:30.0,end:35.0,normalize:true,gain:-6.0,fade_in:1.0,fade_out:2.0,..Default::default()};
+        let mut e=Editor::default();e.start=30.0;e.end=35.0;e.normalize=true;e.gain=-6.0;e.fade_in=1.0;e.fade_out=2.0;
         assert_eq!(e.filter(),"asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-3:LRA=11,volume=-6.00dB,afade=t=in:st=0:d=1.0000,afade=t=out:st=3.0000:d=2.0000,alimiter=limit=0.95:attack=5:release=50:level=0");
     }
     #[test]
@@ -195,7 +195,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let input=dir.join("source.wav");let output=dir.join("clip.mp3");
         assert!(Command::new(tool("ffmpeg")).args(["-y","-f","lavfi","-i","sine=frequency=440:duration=8"]).arg(&input).output().unwrap().status.success());
-        let e=Editor{start:2.0,end:6.0,normalize:true,gain:-3.0,fade_in:0.5,fade_out:0.5,..Default::default()};
+        let mut e=Editor::default();e.start=2.0;e.end=6.0;e.normalize=true;e.gain=-3.0;e.fade_in=0.5;e.fade_out=0.5;
         let result=Command::new(tool("ffmpeg")).args(["-y","-ss","2","-i"]).arg(&input).args(["-t","4","-vn","-af"]).arg(e.filter()).args(["-codec:a","libmp3lame","-b:a","256k"]).arg(&output).output().unwrap();
         assert!(result.status.success(),"{}",String::from_utf8_lossy(&result.stderr));
         assert!((duration(&output).unwrap()-4.0).abs()<0.15);
