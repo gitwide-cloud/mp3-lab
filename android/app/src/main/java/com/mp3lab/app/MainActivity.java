@@ -30,12 +30,12 @@ public class MainActivity extends Activity {
     private String name="song";
     private double duration=0,start=0,end=0,fadeIn=0,fadeOut=0,gainDb=0;
     private MediaPlayer player;
-    private boolean busy;
+    private volatile boolean busy;
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density);}
     private TextView label(String text,int size,int color) {
         TextView v=new TextView(this);v.setText(text);v.setTextSize(size);v.setTextColor(color);v.setPadding(dp(4),dp(7),dp(4),dp(7));return v;
     }
-    private LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
+    private LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
     private void add(LinearLayout l,View v){l.addView(v,new LinearLayout.LayoutParams(-1,-2));}
     private void addSection(String heading,View body){
         LinearLayout block=column();block.setPadding(dp(12),dp(10),dp(12),dp(12));block.setBackgroundColor(PANEL);
@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);
         root=column();root.setPadding(dp(12),dp(15),dp(12),dp(25));scroll.addView(root);
-        add(root,label("⚡ mp3 lab",30,LED));add(root,label("CLASSIC PLAYER • MP3 256 KBPS",12,0xff7ab6e8));
+        add(root,label("mp3⚡lab",30,LED));add(root,label("CLASSIC PLAYER • MP3 256 KBPS",12,0xff7ab6e8));
         button(root,"📂 OPEN AUDIO",v->pick());
         LinearLayout display=column();display.setPadding(dp(12),dp(8),dp(12),dp(8));display.setBackgroundColor(0xff081b10);
         filename=label("NO TRACK LOADED",17,LED);clock=label("00:00 / 00:00",15,LED);
@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
         button(playerControls,"💾 EXPORT 256 KBPS MP3",v->save());
         addSection("PLAYBACK & EXPORT",playerControls);
         status=label("Ready. Open an audio file.",13,LED);add(root,status);
+        button(root,"OPEN SOURCE LICENSES",v->licenses("licenses"));
         setContentView(scroll);refresh();
     }
     private String time(double s){
@@ -105,7 +106,24 @@ public class MainActivity extends Activity {
         if(gainLabel!=null)gainLabel.setText(String.format(Locale.US,"Gain: %+.1f dB",gainDb));
     }
     private void report(String msg){handler.post(()->status.setText(msg));}
+    private void licenses(String path){
+        try {
+            String[] children=getAssets().list(path);
+            if(children!=null&&children.length>0){
+                new android.app.AlertDialog.Builder(this).setTitle("Open source licenses")
+                    .setItems(children,(d,index)->licenses(path+"/"+children[index])).setNegativeButton("Close",null).show();
+            } else {
+                String text;
+                try(InputStream in=getAssets().open(path);ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                    copy(in,out);text=out.toString("UTF-8");
+                }
+                ScrollView scroll=new ScrollView(this);TextView view=label(text,13,Color.WHITE);view.setTextIsSelectable(true);scroll.addView(view);
+                new android.app.AlertDialog.Builder(this).setTitle(path.substring(path.lastIndexOf('/')+1)).setView(scroll).setPositiveButton("Close",null).show();
+            }
+        }catch(IOException ex){report("Cannot open license: "+ex.getMessage());}
+    }
     private void pick(){
+        if(busy)return;
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("audio/*");startActivityForResult(i,PICK);
     }
@@ -122,7 +140,7 @@ public class MainActivity extends Activity {
         }catch(Exception ignored){}
         new Thread(()->{
             try {
-                File file=new File(getCacheDir(),"mp3_lab_input.audio");
+                File file=File.createTempFile("mp3_lab_input_",".audio",getCacheDir());
                 try(InputStream in=getContentResolver().openInputStream(uri);
                     OutputStream out=new FileOutputStream(file)){
                     if(in==null)throw new IOException("Cannot open file");
@@ -134,6 +152,7 @@ public class MainActivity extends Activity {
                 double seconds=length==null?0:Double.parseDouble(length)/1000.0;
                 if(seconds<=0)throw new IOException("Duration not available");
                 handler.post(()->{
+                    if(input!=null)input.delete();
                     input=file;duration=seconds;start=0;end=seconds;fadeIn=0;fadeOut=0;gainDb=0;
                     inBar.setProgress(0);outBar.setProgress(1000);
                     fadeInBar.setProgress(0);fadeOutBar.setProgress(0);gainBar.setProgress(667);

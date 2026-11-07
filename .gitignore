@@ -4,3 +4,5 @@ android/.idea/
 android/local.properties
 android/**/build/
 *.log
+dist/
+android/app/src/main/assets/licenses/

@@ -56,7 +56,7 @@ impl Editor {
         if self.length()<=0.0{return}
         let name=format!("{}_clip.mp3",input.file_stem().unwrap_or_default().to_string_lossy());
         let Some(output)=rfd::FileDialog::new().add_filter("MP3",&["mp3"]).set_file_name(&name).save_file() else{return};
-        if input==output {self.status="Output cannot overwrite source".into();return}
+        if input==output || (output.exists() && std::fs::canonicalize(&input).ok()==std::fs::canonicalize(&output).ok()) {self.status="Output cannot overwrite source".into();return}
         self.stop();let (tx,rx)=mpsc::channel();self.exporting=Some(rx);
         let start=self.start;let length=self.length();let filters=self.filter();
         self.status="Exporting 256 kbps MP3".into();
@@ -171,4 +171,36 @@ fn main()->eframe::Result{
         v.panel_fill=egui::Color32::from_rgb(28,32,38);
         cc.egui_ctx.set_visuals(v);Ok(Box::<Editor>::default())
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn selection_keeps_fades_inside_clip() {
+        let mut e=Editor{duration:10.0,start:8.0,end:20.0,fade_in:4.0,fade_out:4.0,..Default::default()};
+        e.clamp();
+        assert_eq!((e.start,e.end,e.fade_in,e.fade_out),(8.0,10.0,2.0,0.0));
+        e.start=11.0;e.clamp();assert_eq!(e.length(),0.0);
+    }
+    #[test]
+    fn processing_order_and_relative_fade_position() {
+        let e=Editor{start:30.0,end:35.0,normalize:true,gain:-6.0,fade_in:1.0,fade_out:2.0,..Default::default()};
+        assert_eq!(e.filter(),"asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-3:LRA=11,volume=-6.00dB,afade=t=in:st=0:d=1.0000,afade=t=out:st=3.0000:d=2.0000,alimiter=limit=0.95:attack=5:release=50:level=0");
+    }
+    #[test]
+    fn ffmpeg_export_smoke() {
+        if std::env::var_os("MP3_LAB_AUDIO_TEST").is_none(){return}
+        let dir=std::env::temp_dir().join(format!("mp3-lab-test-{}",std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let input=dir.join("source.wav");let output=dir.join("clip.mp3");
+        assert!(Command::new(tool("ffmpeg")).args(["-y","-f","lavfi","-i","sine=frequency=440:duration=8"]).arg(&input).output().unwrap().status.success());
+        let e=Editor{start:2.0,end:6.0,normalize:true,gain:-3.0,fade_in:0.5,fade_out:0.5,..Default::default()};
+        let result=Command::new(tool("ffmpeg")).args(["-y","-ss","2","-i"]).arg(&input).args(["-t","4","-vn","-af"]).arg(e.filter()).args(["-codec:a","libmp3lame","-b:a","256k"]).arg(&output).output().unwrap();
+        assert!(result.status.success(),"{}",String::from_utf8_lossy(&result.stderr));
+        assert!((duration(&output).unwrap()-4.0).abs()<0.15);
+        let probe=Command::new(tool("ffprobe")).args(["-v","error","-select_streams","a:0","-show_entries","stream=codec_name,bit_rate","-of","csv=p=0"]).arg(&output).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&probe.stdout).trim(),"mp3,256000");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

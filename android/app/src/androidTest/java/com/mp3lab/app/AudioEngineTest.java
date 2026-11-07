@@ -1,0 +1,63 @@
+package com.mp3lab.app;
+
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+import com.arthenica.ffmpegkit.*;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import java.io.File;
+import static org.junit.Assert.*;
+
+@RunWith(AndroidJUnit4.class)
+public class AudioEngineTest {
+    private void run(String command) {
+        FFmpegSession s=FFmpegKit.execute(command);
+        assertTrue(s.getAllLogsAsString(), ReturnCode.isSuccess(s.getReturnCode()));
+    }
+    @Test public void trimFadesGainNormalizeAndMp3() throws Exception {
+        File dir=InstrumentationRegistry.getInstrumentation().getTargetContext().getCacheDir();
+        File source=new File(dir,"test-source.wav"), output=new File(dir,"test-output.mp3");
+        run("-y -f lavfi -i sine=frequency=440:duration=8 -c:a pcm_s16le "+source);
+        // Exercise the actual UI command builder, including normalize and manual gain.
+        MainActivity activity=(MainActivity)InstrumentationRegistry.getInstrumentation().startActivitySync(
+            new android.content.Intent(InstrumentationRegistry.getInstrumentation().getTargetContext(), MainActivity.class)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            for (String field:new String[]{"start","end","fadeIn","fadeOut","gainDb"}) {
+                java.lang.reflect.Field f=MainActivity.class.getDeclaredField(field);f.setAccessible(true);
+                f.setDouble(activity, field.equals("start")?2:field.equals("end")?6:field.equals("gainDb")?-3:0.5);
+            }
+            java.lang.reflect.Field in=MainActivity.class.getDeclaredField("input");in.setAccessible(true);in.set(activity,source);
+            java.lang.reflect.Field norm=MainActivity.class.getDeclaredField("normalize");norm.setAccessible(true);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(()->((android.widget.CheckBox)get(norm,activity)).setChecked(true));
+            java.lang.reflect.Method cmd=MainActivity.class.getDeclaredMethod("command",File.class,boolean.class);cmd.setAccessible(true);
+            run((String)cmd.invoke(activity,output,true));
+            MediaInformation info=FFprobeKit.getMediaInformation(output.toString()).getMediaInformation();
+            assertNotNull(info);
+            assertEquals(4,Double.parseDouble(info.getDuration()),0.15);
+            assertEquals("mp3",info.getStreams().get(0).getCodec());
+            assertEquals(256000,Long.parseLong(info.getStreams().get(0).getBitrate()));
+            File pcm=new File(dir,"test-output.pcm");
+            run("-y -i "+output+" -ac 1 -ar 48000 -f s16le "+pcm);
+            byte[] samples=java.nio.file.Files.readAllBytes(pcm.toPath());
+            double middle=rms(samples,1.5,2.5);
+            assertTrue("Normalized signal with -3 dB gain: "+middle,middle>0.06&&middle<0.18);
+            assertTrue("Fade in must attenuate opening",rms(samples,0,0.1)<middle*0.4);
+            assertTrue("Fade out must attenuate ending",rms(samples,3.9,4)<middle*0.4);
+            pcm.delete();
+            android.media.MediaPlayer player=new android.media.MediaPlayer();
+            player.setDataSource(output.toString());player.prepare();player.start();
+            assertTrue(player.isPlaying());player.stop();player.release();
+            run("-y -i "+output+" -af astats -f null -");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(activity::finish);
+            source.delete();output.delete();
+        }
+    }
+    private Object get(java.lang.reflect.Field f,Object o){try{return f.get(o);}catch(Exception e){throw new RuntimeException(e);}}
+    private double rms(byte[] b,double from,double to){
+        int start=(int)(from*48000),end=Math.min(b.length/2,(int)(to*48000));double sum=0;
+        for(int i=start;i<end;i++){double v=(short)((b[2*i]&255)|(b[2*i+1]<<8))/32768.0;sum+=v*v;}
+        return Math.sqrt(sum/(end-start));
+    }
+}
