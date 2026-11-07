@@ -1,0 +1,103 @@
+name: Build and publish MP3 Lab
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: Desktop build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: mp3-lab-windows
+          - os: ubuntu-24.04
+            artifact: mp3-lab-linux
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config zip libgtk-3-dev libxkbcommon-dev libwayland-dev libasound2-dev libudev-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxinerama-dev libgl1-mesa-dev
+      - name: Build Rust release
+        run: cargo build --release
+      - name: Package Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path target/release/mp3-lab.exe -DestinationPath ../mp3-lab-windows.zip -Force
+      - name: Package Linux executable
+        if: runner.os == 'Linux'
+        run: zip -j ../mp3-lab-linux.zip target/release/mp3-lab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+          if-no-files-found: error
+
+  android:
+    name: Android ARM64 APK
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile Android APK
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Name APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk ../mp3-lab.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mp3-lab-android
+          path: mp3-lab.apk
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release after all builds pass
+    runs-on: ubuntu-24.04
+    needs: [desktop, android]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mp3-lab-*
+          merge-multiple: true
+          path: dist
+      - name: Verify all three downloads
+        run: |
+          test -s dist/mp3-lab-windows.zip
+          test -s dist/mp3-lab-linux.zip
+          test -s dist/mp3-lab.apk
+          ls -lh dist
+      - name: Publish preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete v0.1.0-preview --yes --cleanup-tag 2>/dev/null || true
+          gh release create v0.1.0-preview \
+            dist/mp3-lab-windows.zip dist/mp3-lab-linux.zip dist/mp3-lab.apk \
+            --title "MP3 Lab v0.1.0 preview" --prerelease \
+            --notes "Preview builds for Windows, Linux, and Android ARM64. Not yet functionally tested on devices. Desktop requires ffmpeg, ffprobe, ffplay. Android is debug-signed. Third-party audio libraries have separate licenses."
