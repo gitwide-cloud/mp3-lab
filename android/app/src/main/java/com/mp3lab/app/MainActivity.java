@@ -215,12 +215,15 @@ public class MainActivity extends Activity {
     float[] readWaveform(File file,double seconds)throws IOException{
         File pcm=File.createTempFile("waveform_",".pcm",getCacheDir());
         try{
-            com.arthenica.ffmpegkit.FFmpegSession session=FFmpegKit.execute("-y -i "+quote(file.toString())+" -ac 1 -ar 2000 -f f32le "+quote(pcm.toString()));
+            com.arthenica.ffmpegkit.FFmpegSession session=FFmpegKit.execute("-y -hide_banner -i "+quote(file.toString())+" -filter_complex "+quote("[0:a]asplit=2[wave][stats];[stats]astats=metadata=0:reset=0[meter]")+" -map [wave] -ac 1 -ar 2000 -f f32le "+quote(pcm.toString())+" -map [meter] -f null -");
             if(!ReturnCode.isSuccess(session.getReturnCode()))return new float[0];
             float[] peaks=new float[1200];float peak=0;long index=0;
             try(DataInputStream in=new DataInputStream(new BufferedInputStream(new FileInputStream(pcm)))){
                 while(in.available()>=4){float v=Math.abs(Float.intBitsToFloat(Integer.reverseBytes(in.readInt())));int bin=(int)(index++/Math.max(1,seconds*2000)*peaks.length);if(bin<peaks.length)peaks[bin]=Math.max(peaks[bin],v);peak=Math.max(peak,v);}
-            }peakDb=peak>0?20*Math.log10(peak):Double.NEGATIVE_INFINITY;return peaks;
+            }peakDb=peak>0?20*Math.log10(peak):Double.NEGATIVE_INFINITY;
+            java.util.regex.Matcher meter=java.util.regex.Pattern.compile("Peak level dB:\\s+(-?[0-9.]+|-inf)").matcher(session.getAllLogsAsString());
+            while(meter.find())peakDb=meter.group(1).equals("-inf")?Double.NEGATIVE_INFINITY:Double.parseDouble(meter.group(1));
+            return peaks;
         }finally{pcm.delete();}
     }
     @Override protected void onDestroy(){stop();super.onDestroy();}

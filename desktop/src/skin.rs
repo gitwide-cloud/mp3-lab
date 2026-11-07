@@ -19,6 +19,7 @@ fn panel_tinted<R>(ui:&mut egui::Ui,top:C,bottom:C,body:impl FnOnce(&mut egui::U
     let r=result.response.rect;let mut m=egui::Mesh::default();
     for(pos,col) in [(r.left_top(),top),(r.right_top(),top),(r.left_bottom(),bottom),(r.right_bottom(),bottom)]{m.colored_vertex(pos,col);}
     m.indices=vec![0,1,2,2,1,3];ui.painter().set(bg,egui::Shape::mesh(m));
+    ui.painter().rect_stroke(r.shrink(2.0),4.0,Stroke::new(1.0,C::from_rgb(14,17,22)),egui::StrokeKind::Inside);
     ui.painter().line_segment([r.left_bottom()+egui::vec2(2.0,-2.0),r.right_bottom()+egui::vec2(-2.0,-2.0)],Stroke::new(1.0,C::BLACK));result
 }
 fn chrome(ui:&mut egui::Ui,text:&str,size:Vec2)->egui::Response{
@@ -44,6 +45,24 @@ fn chrome(ui:&mut egui::Ui,text:&str,size:Vec2)->egui::Response{
     }response
 }
 fn heading(ui:&mut egui::Ui,text:&str){ui.label(RichText::new(text).size(18.0).strong().color(BLUE));ui.add_space(5.0);}
+fn fader(ui:&mut egui::Ui,value:&mut f64,min:f64,max:f64)->egui::Response{
+    let response=ui.add(egui::Slider::new(value,min..=max).show_value(false));
+    let r=response.rect;let start=r.left()+10.0;let end=r.right()-10.0;
+    let track=Rect::from_center_size(r.center(),egui::vec2((end-start).max(1.0),8.0));
+    ui.painter().rect_filled(track.expand(1.0),4.0,C::from_gray(105));ui.painter().rect_filled(track,4.0,C::from_rgb(2,5,12));
+    let x=start+((*value-min)/(max-min)) as f32*(end-start);
+    gradient(ui.painter(),Rect::from_min_max(track.min,egui::pos2(x,track.bottom())),C::from_rgb(133,172,255),C::from_rgb(18,69,232));
+    let knob=Rect::from_center_size(egui::pos2(x,r.center().y),egui::vec2(20.0,26.0));
+    ui.painter().rect_filled(knob.expand(1.0),3.0,C::BLACK);gradient(ui.painter(),knob,C::from_gray(238),C::from_gray(130));
+    ui.painter().rect_stroke(knob,2.0,Stroke::new(1.0,C::from_gray(210)),egui::StrokeKind::Inside);response
+}
+fn title_text(p:&egui::Painter,pos:egui::Pos2,size:f32,text:&str){
+    let font=FontId::new(size,egui::FontFamily::Name("brand".into()));p.text(pos+egui::vec2(1.0,2.0),Align2::LEFT_TOP,text,font.clone(),C::BLACK);
+    for i in 0..12{let t=i as f32/11.0;let gray=if t<0.45{255.0-t*100.0}else if t<0.6{128.0}else{225.0-(t-0.6)*120.0};
+        let clip=Rect::from_min_max(pos+egui::vec2(-3.0,i as f32*size*1.25/12.0),pos+egui::vec2(230.0,(i+1) as f32*size*1.25/12.0));
+        p.with_clip_rect(clip.intersect(p.clip_rect())).text(pos,Align2::LEFT_TOP,text,font.clone(),C::from_gray(gray as u8));
+    }
+}
 fn well<R>(ui:&mut egui::Ui,body:impl FnOnce(&mut egui::Ui)->R)->egui::InnerResponse<R>{egui::Frame::new().fill(C::from_rgb(1,12,5)).stroke(Stroke::new(2.0,C::from_gray(92))).corner_radius(4).inner_margin(12).show(ui,|ui|ui.with_layout(egui::Layout::top_down(egui::Align::Min),body).inner)}
 pub fn configure(ctx:&egui::Context){
     let mut fonts=egui::FontDefinitions::default();
@@ -68,10 +87,10 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
         let header=panel_tinted(ui,C::from_rgb(23,31,52),C::from_rgb(3,7,20),|ui|{
             ui.horizontal(|ui|{
                 let(r,_)=ui.allocate_exact_size(egui::vec2(300.0,48.0),egui::Sense::hover());
-                ui.painter().text(r.left_top()+egui::vec2(0.0,0.0),Align2::LEFT_TOP,"MP3",FontId::new(46.0,egui::FontFamily::Name("brand".into())),C::from_gray(231));
+                title_text(ui.painter(),r.left_top(),46.0,"MP3");
                 let x=r.left()+108.0;let y=r.top()-3.0;let bolt=vec![egui::pos2(x+30.0,y),egui::pos2(x,y+32.0),egui::pos2(x+15.0,y+32.0),egui::pos2(x-3.0,y+56.0),egui::pos2(x+39.0,y+20.0),egui::pos2(x+21.0,y+20.0)];
                 ui.painter().add(egui::Shape::Path(egui::epaint::PathShape{points:bolt,closed:true,fill:GOLD,stroke:Stroke::new(0.5,C::from_rgb(185,143,0)).into()}));
-                ui.painter().text(r.left_top()+egui::vec2(146.0,7.0),Align2::LEFT_TOP,"lab",FontId::new(38.0,egui::FontFamily::Name("brand".into())),C::from_gray(231));
+                title_text(ui.painter(),r.left_top()+egui::vec2(146.0,7.0),38.0,"lab");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
                     if chrome(ui,"close",egui::vec2(39.0,33.0)).on_hover_text("Close").clicked(){ctx.send_viewport_cmd(egui::ViewportCommand::Close);}
                     if chrome(ui,"maximize",egui::vec2(39.0,33.0)).on_hover_text("Maximize / restore").clicked(){let max=ctx.input(|i|i.viewport().maximized.unwrap_or(false));ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!max));}
@@ -119,7 +138,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
                 ui.separator();if chrome(ui,if e.repeat{"repeat-on"}else{"repeat"},egui::vec2(60.0,42.0)).on_hover_text("Repeat clip").clicked(){e.repeat=!e.repeat;}
                 if chrome(ui,"Original",egui::vec2(85.0,42.0)).on_hover_text("Preview without effects").clicked(){e.play(false);}
             });
-            ui.separator();ui.label("Vol");let response=ui.add(egui::Slider::new(&mut e.volume,0.0..=100.0).show_value(false));
+            ui.separator();ui.label("Vol");let mut volume=e.volume as f64;let response=fader(ui,&mut volume,0.0,100.0);e.volume=volume as f32;
             if response.drag_stopped()&&e.player.is_some(){e.offset=e.elapsed();e.started=None;e.kill_player();e.resume();}
         });});
         panel(ui,|ui|{waveform(e,ui);});
@@ -142,7 +161,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
             panel(&mut cols[2],|ui|{heading(ui,"Gain");
                 ui.checkbox(&mut e.normalize,"Normalize  (−16.0 LUFS)");
                 ui.horizontal(|ui|{ui.label("Gain:");ui.add(egui::DragValue::new(&mut e.gain).speed(0.1).range(-24.0..=12.0).fixed_decimals(1).suffix(" dB"));});
-                ui.add(egui::Slider::new(&mut e.gain,-24.0..=12.0).show_value(false));
+                fader(ui,&mut e.gain,-24.0,12.0);
                 let peak=e.peak_db.map(|v|format!("Peak: {v:.1} dBFS")).unwrap_or_else(||"Peak: —".into());
                 ui.horizontal(|ui|{if ui.small_button("Analyze").clicked(){e.status=peak.clone();}ui.label(RichText::new(peak).monospace().size(13.0).color(GREEN));});
             });

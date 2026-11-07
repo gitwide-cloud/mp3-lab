@@ -125,11 +125,11 @@ fn command(name:&str)->Command{
 fn clock(sec:f64)->String{let m=(sec/60.0).floor() as u64; format!("{}:{:05.2}",m,sec-(m*60) as f64)}
 fn read_waveform(path:&Path,duration:f64)->Result<Vec<[f32;2]>,String>{
     use std::io::Read;
-    let mut child=command("ffmpeg").args(["-hide_banner","-loglevel","error","-i"]).arg(path).args(["-vn","-ac","2","-ar","2000","-f","f32le","pipe:1"])
+    let mut child=command("ffmpeg").args(["-hide_banner","-loglevel","error","-i"]).arg(path).args(["-vn","-ac","2","-ar","48000","-f","f32le","pipe:1"])
         .stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|e|e.to_string())?;
     let mut stream=std::io::BufReader::new(child.stdout.take().unwrap());let mut frame=[0u8;8];let mut bins=vec![[0.0f32;2];1600];let mut index=0usize;
     while stream.read_exact(&mut frame).is_ok(){
-        let bin=((index as f64/(duration*2000.0))*1600.0) as usize;index+=1;
+        let bin=((index as f64/(duration*48000.0))*1600.0) as usize;index+=1;
         if bin<1600{for channel in 0..2{let value=f32::from_le_bytes(frame[channel*4..channel*4+4].try_into().unwrap()).abs();if value.is_finite(){bins[bin][channel]=bins[bin][channel].max(value);}}}
     }
     if !child.wait().map_err(|e|e.to_string())?.success(){return Err("Waveform decoding failed".into())}Ok(bins)
@@ -210,6 +210,7 @@ mod tests {
         let result=command("ffmpeg").args(["-y","-ss","2","-i"]).arg(&input).args(["-t","4","-vn","-af"]).arg(e.filter()).args(["-codec:a","libmp3lame","-b:a","256k"]).arg(&output).output().unwrap();
         assert!(result.status.success(),"{}",String::from_utf8_lossy(&result.stderr));
         assert!((duration(&output).unwrap()-4.0).abs()<0.15);
+        let wave=read_waveform(&input,8.0).unwrap();assert_eq!(wave.len(),1600);assert!(wave.iter().any(|p|p[0]>0.1&&p[1]>0.1));
         let probe=command("ffprobe").args(["-v","error","-select_streams","a:0","-show_entries","stream=codec_name,bit_rate","-of","csv=p=0"]).arg(&output).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&probe.stdout).trim(),"mp3,256000");
         std::fs::remove_dir_all(dir).unwrap();
