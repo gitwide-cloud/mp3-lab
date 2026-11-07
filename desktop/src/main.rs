@@ -89,7 +89,8 @@ fn duration(p:&Path)->Result<f64,String>{
 }
 fn clock(sec:f64)->String{let m=(sec/60.0).floor() as u64; format!("{}:{:05.2}",m,sec-(m*60) as f64)}
 impl eframe::App for Editor{
- fn update(&mut self,ctx:&egui::Context,_:&mut eframe::Frame){
+ fn ui(&mut self,ui:&mut egui::Ui,_:&mut eframe::Frame){
+    let ctx=ui.ctx().clone();
     if let Some(rx)=&self.exporting{
         match rx.try_recv(){
             Ok(Ok(p))=>{self.status=format!("Saved {}",p.display());self.exporting=None},
@@ -99,9 +100,9 @@ impl eframe::App for Editor{
         }
     }
     if let Some(p)=&mut self.player{if let Ok(Some(_))=p.try_wait(){self.player=None}}
-    egui::CentralPanel::default().show(ctx,|ui|{
+    egui::CentralPanel::default().show(ui,|ui|{
       egui::ScrollArea::vertical().show(ui,|ui|{
-        ui.heading(egui::RichText::new("⚡ mp3 lab").color(egui::Color32::LIGHT_GREEN).size(30.0));
+        ui.heading(egui::RichText::new("mp3⚡lab").color(egui::Color32::LIGHT_GREEN).size(30.0));
         ui.small("CLASSIC PLAYER  •  256 KBPS MP3");
         ui.add_space(10.0);
         egui::Frame::group(ui.style()).fill(egui::Color32::from_rgb(10,25,18)).show(ui,|ui|{
@@ -143,9 +144,10 @@ impl eframe::App for Editor{
                 ui.label("OUT");ui.add(egui::DragValue::new(&mut self.end).speed(0.1).range(0.0..=self.duration).suffix(" s"));
             });
             self.clamp();ui.separator();ui.heading("02  FADES");
+            let clip_length=self.length();
             ui.horizontal(|ui|{
-                ui.label("Fade in");ui.add(egui::DragValue::new(&mut self.fade_in).speed(0.1).range(0.0..=self.length()).suffix(" s"));
-                ui.label("Fade out");ui.add(egui::DragValue::new(&mut self.fade_out).speed(0.1).range(0.0..=self.length()).suffix(" s"));
+                ui.label("Fade in");ui.add(egui::DragValue::new(&mut self.fade_in).speed(0.1).range(0.0..=clip_length).suffix(" s"));
+                ui.label("Fade out");ui.add(egui::DragValue::new(&mut self.fade_out).speed(0.1).range(0.0..=clip_length).suffix(" s"));
             });
             self.clamp();ui.separator();ui.heading("03  GAIN / LOUDNESS");
             ui.checkbox(&mut self.normalize,"Normalize to -16 LUFS");
@@ -156,7 +158,7 @@ impl eframe::App for Editor{
             ui.small("Normalize → manual gain → fades → limiter");
             ui.separator();
             if ui.add_enabled(self.exporting.is_none(),egui::Button::new("💾 EXPORT MP3 — 256 KBPS")).clicked(){self.export()}
-        }else{ui.label("Open an audio file to begin.")}
+        }else{ui.label("Open an audio file to begin.");}
         ui.separator();ui.small(&self.status);
       });
     });
