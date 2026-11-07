@@ -52,7 +52,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
-          name: skin-preview
+          name: mp3-lab-skin-preview
           path: desktop-skin.png
       - name: Retrieve matching source-built Windows audio tools
         if: runner.os == 'Windows'
@@ -159,8 +159,9 @@ jobs:
           test -s dist/windows-audio-sources.tar.gz
           test -s dist/android-third-party-sources.zip
           cp THIRD_PARTY_NOTICES.md dist/
+          cp assets/screenshots/android.png dist/android-skin.png
           cd dist
-          sha256sum *.zip *.apk *.exe *.tar.gz THIRD_PARTY_NOTICES.md > SHA256SUMS.txt
+          sha256sum *.zip *.apk *.exe *.tar.gz *.png THIRD_PARTY_NOTICES.md > SHA256SUMS.txt
           cd ..
           ls -lh dist
       - name: Publish preview release
@@ -168,6 +169,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "v0.1.0-preview.${{ github.run_number }}" dist/* \
-            --target "${{ github.sha }}" --title "mp3⚡lab v0.1.0 preview ${{ github.run_number }}" --prerelease \
+          gh release create "v0.2.0-preview.${{ github.run_number }}" dist/* \
+            --target "${{ github.sha }}" --title "mp3⚡lab v0.2.0 preview ${{ github.run_number }}" --prerelease \
             --notes "Reference-inspired metallic player skin, real waveform and supplied app icon. Windows installer and portable ZIP include FFmpeg, FFprobe and FFplay; no separate audio-tool installation required. Windows portable and installed audio tools are tested with a system-only PATH. Linux ZIP requires system FFmpeg and desktop libraries. Rust tests, audio export tests, desktop screenshot check and Android lint pass in CI. Android ARM64 is debug-signed for sideloading; updates may require uninstalling a preview with a different key. Dependency notices and corresponding audio sources are included. Verify downloads with SHA256SUMS.txt."

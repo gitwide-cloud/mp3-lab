@@ -8,7 +8,7 @@ Free, open-source clip editor with a retro Winamp-inspired interface. MP3 Lab ha
 
 **[GitHub Releases](https://github.com/gitwide-cloud/mp3-lab/releases)**
 
-Every push to `main` starts GitHub Actions jobs for Windows, Linux and Android. A versioned `v0.1.0-preview.N` release is published **only if all three builds and required checks succeed**. Existing releases are preserved. Check [Actions](https://github.com/gitwide-cloud/mp3-lab/actions) for results. These are preview builds.
+Every push to `main` starts GitHub Actions jobs for Windows, Linux and Android. A versioned `v0.2.0-preview.N` release is published **only if all three builds and required checks succeed**. Existing releases are preserved. Check [Actions](https://github.com/gitwide-cloud/mp3-lab/actions) for results. These are preview builds.
 
 Expected files:
 - `mp3-lab-setup.exe`: Windows 10/11 x64 installer, including all audio tools

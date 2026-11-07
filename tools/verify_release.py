@@ -1,5 +1,5 @@
 """Download public release assets and verify checksums plus archive contents."""
-import hashlib, json, pathlib, sys, urllib.request, zipfile
+import hashlib, json, pathlib, sys, urllib.request, zipfile, tarfile
 repo='https://api.github.com/repos/gitwide-cloud/mp3-lab'
 tag=sys.argv[1]
 with urllib.request.urlopen(repo+'/releases/tags/'+tag) as response:release=json.load(response)
@@ -19,6 +19,14 @@ for platform,magic in [('windows',b'MZ'),('linux',b'\x7fELF')]:
         assert z.read(exe).startswith(magic)
         assert len(json.loads(z.read('licenses/dependencies.json')))>10
         assert z.read('LICENSE') and z.read('Cargo.lock')
+        if platform=='windows':
+            for tool in ['ffmpeg.exe','ffprobe.exe','ffplay.exe']:assert z.read(tool).startswith(b'MZ')
+            assert z.read('mp3-lab.ico') and z.read('licenses/Arimo-OFL.txt')
+assert (out/'mp3-lab-setup.exe').read_bytes().startswith(b'MZ')
+with tarfile.open(out/'windows-audio-sources.tar.gz') as tar:
+    assert tar.extractfile('sources/build_windows_audio.sh').read()
+    for name in ['ffmpeg-n8.1.3.tar.gz','SDL2-2.32.10.tar.gz','lame-3.100.tar.gz']:
+        assert tar.getmember('sources/'+name).size>1000
 with zipfile.ZipFile(out/'mp3-lab.apk') as z:
     assert z.testzip() is None
     assert z.read('classes.dex').startswith(b'dex')
