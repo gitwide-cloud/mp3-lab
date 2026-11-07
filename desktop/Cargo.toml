@@ -1,0 +1,10 @@
+[package]
+name = "mp3-lab"
+version = "0.1.0"
+edition = "2024"
+description = "Retro audio clip editor with fades and MP3 256 kbps export"
+license = "MIT"
+
+[dependencies]
+eframe = { version = "=0.37.0", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
+rfd = "0.15"
