@@ -38,6 +38,10 @@ public class MainActivity extends Activity {
     TextView clipLabel;
     boolean editedPreview=true;
     Retro.Meter meter;
+    ScrollView editorScroll;
+    TextView zoomLabel;
+    Button inTarget,outTarget;
+    final Runnable checkpoint=()->SessionStore.save(this);
     final Runnable playbackTick=new Runnable(){public void run(){
         if(player!=null&&waveformView!=null){try{waveformView.position=start+player.getCurrentPosition()/1000.0;waveformView.invalidate();clock.setText(time(waveformView.position)+" / "+time(duration));if(meter!=null)meter.invalidate();}catch(IllegalStateException ignored){}}
         handler.postDelayed(this,80);
@@ -66,13 +70,20 @@ public class MainActivity extends Activity {
         Button b=new Button(this);b.setText(title);Retro.button(b);b.setOnClickListener(onClick);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(45));p.setMargins(dp(3),dp(3),dp(3),dp(3));l.addView(b,p);return b;
     }
-    @Override public void onCreate(Bundle state){super.onCreate(state); RetroLayout.create(this);}
+    @Override public void onCreate(Bundle state){super.onCreate(state);RetroLayout.create(this);
+        if(!SessionStore.restore(this,state==null?null:state.getString("editingSession"))&&state!=null)SessionStore.restore(this,null);
+    }
+    void scheduleSessionSave(){handler.removeCallbacks(checkpoint);if(input!=null)handler.postDelayed(checkpoint,180);}
+    void refreshZoom(){
+        if(zoomLabel!=null)zoomLabel.setText(String.format(Locale.US,"%.1f×   %s – %s",waveformView.zoom,time(waveformView.viewStart),time(waveformView.visibleEnd())));
+        if(inTarget!=null){inTarget.setText(waveformView.targetStart?"IN ✓":"IN");outTarget.setText(waveformView.targetStart?"OUT":"OUT ✓");}
+    }
     String time(double s){
         int seconds=(int)Math.max(0,s);
         return String.format(Locale.US,"%d:%06.3f",seconds/60,s-(seconds/60)*60);
     }
     void refresh(){
-        if(end<start)end=start;
+        start=Math.max(0,Math.min(duration,start));end=Math.max(start,Math.min(duration,end));gainDb=Math.max(-24,Math.min(12,gainDb));fadeIn=Math.max(0,fadeIn);fadeOut=Math.max(0,fadeOut);
         double len=Math.max(0,end-start);
         fadeIn=Math.min(fadeIn,len);
         fadeOut=Math.min(fadeOut,Math.max(0,len-fadeIn));
@@ -86,6 +97,8 @@ public class MainActivity extends Activity {
         if(clipLabel!=null)clipLabel.setText("Start    "+time(start)+"\nEnd      "+time(end)+"\nLength   "+time(len));
         if(waveformView!=null){waveformView.peaks=waveform;waveformView.duration=duration;waveformView.start=start;waveformView.end=end;waveformView.position=start;waveformView.invalidate();}
         if(meter!=null)meter.invalidate();
+        if(input!=null)getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        refreshZoom();scheduleSessionSave();
     }
     void report(String msg){handler.post(()->status.setText(msg));}
     void licenses(String path){
@@ -117,32 +130,43 @@ public class MainActivity extends Activity {
     }
     void load(Uri uri){
         if(busy)return;busy=true;stop();report("Loading audio...");
-        try(Cursor cursor=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
-            if(cursor!=null&&cursor.moveToFirst())name=cursor.getString(0);
-        }catch(Exception ignored){}
+        final String displayName=displayName(uri);
+        final File file;
+        try{file=File.createTempFile("track_",".audio",SessionStore.directory(this));}
+        catch(Exception e){busy=false;report("Cannot create editing copy: "+e.getMessage());return;}
         new Thread(()->{
             try {
-                File file=File.createTempFile("mp3_lab_input_",".audio",getCacheDir());
                 try(InputStream in=getContentResolver().openInputStream(uri);
-                    OutputStream out=new FileOutputStream(file)){
+                    FileOutputStream out=new FileOutputStream(file)){
                     if(in==null)throw new IOException("Cannot open file");
-                    copy(in,out);
+                    copy(in,out);out.getFD().sync();
                 }
-                MediaMetadataRetriever r=new MediaMetadataRetriever();
-                r.setDataSource(file.getAbsolutePath());
-                String length=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);r.release();
+                MediaMetadataRetriever r=new MediaMetadataRetriever();String length;
+                try{r.setDataSource(file.getAbsolutePath());length=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);}finally{r.release();}
                 double seconds=length==null?0:Double.parseDouble(length)/1000.0;
-                if(seconds<=0)throw new IOException("Duration not available");
+                if(seconds<=0||!Double.isFinite(seconds))throw new IOException("Duration not available");
                 float[] peaks=readWaveform(file,seconds);
                 handler.post(()->{
-                    if(input!=null)input.delete();
+                    if(isDestroyed()){file.delete();busy=false;return;}
+                    File previous=input;name=displayName;
                     input=file;waveform=peaks;duration=seconds;start=0;end=seconds;fadeIn=0;fadeOut=0;gainDb=0;
                     inBar.setProgress(0);outBar.setProgress(1000);
                     fadeInBar.setProgress(0);fadeOutBar.setProgress(0);gainBar.setProgress(667);
-                    normalize.setChecked(false);filename.setText(name);refresh();report("Loaded "+name);busy=false;
+                    normalize.setChecked(false);filename.setText(name);waveformView.fit();refresh();SessionStore.writeWave(this);
+                    boolean saved=SessionStore.save(this);
+                    if(saved&&previous!=null&&!previous.equals(file)){
+                        try{if(SessionStore.owns(this,previous)){previous.delete();SessionStore.waveform(this,previous).delete();}}catch(IOException ignored){}
+                    }
+                    report(saved?"Loaded "+name:"Loaded; session autosave unavailable");busy=false;
                 });
-            }catch(Exception ex){report("Load error: "+ex.getMessage());busy=false;}
+            }catch(Exception ex){file.delete();report("Load error: "+ex.getMessage());busy=false;}
         }).start();
+    }
+    String displayName(Uri uri){
+        try(Cursor cursor=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
+            if(cursor!=null&&cursor.moveToFirst()){String title=cursor.getString(0);if(title!=null&&!title.trim().isEmpty())return title;}
+        }catch(Exception ignored){}
+        return "song";
     }
     String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
     String filters(){
@@ -217,7 +241,7 @@ public class MainActivity extends Activity {
         try{
             com.arthenica.ffmpegkit.FFmpegSession session=FFmpegKit.execute("-y -hide_banner -i "+quote(file.toString())+" -filter_complex "+quote("[0:a]asplit=2[wave][stats];[stats]astats=metadata=0:reset=0[meter]")+" -map [wave] -ac 1 -ar 2000 -f f32le "+quote(pcm.toString())+" -map [meter] -f null -");
             if(!ReturnCode.isSuccess(session.getReturnCode()))return new float[0];
-            float[] peaks=new float[1200];float peak=0;long index=0;
+            float[] peaks=new float[(int)Math.min(400000,Math.max(1200,Math.ceil(seconds*2000)))];float peak=0;long index=0;
             try(DataInputStream in=new DataInputStream(new BufferedInputStream(new FileInputStream(pcm)))){
                 while(in.available()>=4){float v=Math.abs(Float.intBitsToFloat(Integer.reverseBytes(in.readInt())));int bin=(int)(index++/Math.max(1,seconds*2000)*peaks.length);if(bin<peaks.length)peaks[bin]=Math.max(peaks[bin],v);peak=Math.max(peak,v);}
             }peakDb=peak>0?20*Math.log10(peak):Double.NEGATIVE_INFINITY;
@@ -226,7 +250,18 @@ public class MainActivity extends Activity {
             return peaks;
         }finally{pcm.delete();}
     }
-    @Override protected void onDestroy(){stop();super.onDestroy();}
+    void rebuildRestoredWaveform(File source){
+        busy=true;report("Session restored. Reading waveform…");
+        new Thread(()->{try{float[] restored=readWaveform(source,duration);handler.post(()->{
+            if(!isDestroyed()&&source.equals(input)){waveform=restored;SessionStore.writeWave(this);refresh();report("Editing session restored.");}busy=false;
+        });}catch(Exception e){busy=false;report("Session restored; waveform unavailable: "+e.getMessage());}}).start();
+    }
+    @Override protected void onSaveInstanceState(Bundle state){
+        handler.removeCallbacks(checkpoint);SessionStore.save(this);
+        try{org.json.JSONObject saved=SessionStore.snapshot(this);if(saved!=null)state.putString("editingSession",saved.toString());}catch(Exception ignored){}
+        super.onSaveInstanceState(state);
+    }
+    @Override protected void onDestroy(){handler.removeCallbacks(checkpoint);stop();super.onDestroy();}
     @Override protected void onResume(){super.onResume();handler.post(playbackTick);}
-    @Override protected void onPause(){handler.removeCallbacks(playbackTick);super.onPause();}
+    @Override protected void onPause(){handler.removeCallbacks(playbackTick);handler.removeCallbacks(checkpoint);SessionStore.save(this);stop();super.onPause();}
 }

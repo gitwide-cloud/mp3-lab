@@ -60,47 +60,89 @@ final class Retro {
         }
     }
     static final class Wave extends View {
-        float[] peaks=new float[0];double duration,start,end,position;boolean draggingStart;
-        Selection selection;final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
-        Wave(Context c){super(c);setContentDescription("Audio waveform. Drag the yellow handles to trim the clip.");setFocusable(true);}
+        float[] peaks=new float[0];double duration,start,end,position,zoom=1,viewStart;boolean targetStart=true;
+        Selection selection;Runnable viewChanged;final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
+        final ScaleGestureDetector scale;float downX,downY,lastX;int dragMode;boolean moved,multiple;
+        Wave(Context c){super(c);setContentDescription("Zoomable audio waveform. Pinch to zoom, drag to pan, or drag yellow trim handles.");setFocusable(true);
+            scale=new ScaleGestureDetector(c,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
+                @Override public boolean onScaleBegin(ScaleGestureDetector d){multiple=true;dragMode=0;return true;}
+                @Override public boolean onScale(ScaleGestureDetector d){
+                    double fraction=Math.max(0,Math.min(1,d.getFocusX()/Math.max(1,getWidth()))),anchor=viewStart+fraction*span();
+                    zoom=Math.max(1,Math.min(maxZoom(),zoom*d.getScaleFactor()));viewStart=anchor-fraction*span();changed();return true;
+                }
+            });
+        }
+        double maxZoom(){return Math.max(1,Math.min(256,duration/.05));}
+        double span(){return duration/Math.max(1,zoom);}
+        double visibleEnd(){return Math.min(duration,viewStart+span());}
+        void clampViewport(){zoom=Math.max(1,Math.min(maxZoom(),Double.isFinite(zoom)?zoom:1));viewStart=Math.max(0,Math.min(Math.max(0,duration-span()),Double.isFinite(viewStart)?viewStart:0));}
+        void changed(){clampViewport();invalidate();if(viewChanged!=null)viewChanged.run();}
+        void restoreViewport(double scale,double offset,boolean in){zoom=scale;viewStart=offset;targetStart=in;changed();}
+        void fit(){zoom=1;viewStart=0;changed();}
+        void zoomBy(double factor){double anchor=targetStart?start:end;zoom=Math.max(1,Math.min(maxZoom(),zoom*factor));viewStart=anchor-span()/2;changed();}
+        void focusMarker(boolean in){targetStart=in;double marker=in?start:end;if(marker<viewStart||marker>visibleEnd())viewStart=marker-span()/2;changed();}
+        double timeAt(float x){return Math.max(0,Math.min(duration,viewStart+Math.max(0,Math.min(1,x/Math.max(1,getWidth())))*span()));}
+        float xAt(double seconds){return span()>0?(float)((seconds-viewStart)/span()*getWidth()):0;}
+        void place(double time,boolean in){if(in)start=Math.min(time,end);else end=Math.max(time,start);if(selection!=null)selection.set(start,end);invalidate();}
+        void nudge(double seconds){place(Math.max(0,Math.min(duration,(targetStart?start:end)+seconds)),targetStart);focusMarker(targetStart);}
         void rect(Canvas c,float l,float t,float r,float b,int color){p.setShader(null);p.setColor(color);c.drawRect(l,t,r,b,p);}
         void label(Canvas c,String s,float x,float y,int color,float size){p.setShader(null);p.setTypeface(Typeface.MONOSPACE);p.setTextSize(size);p.setColor(color);c.drawText(s,x,y,p);}
         @Override protected void onDraw(Canvas c){
             float w=getWidth(),h=getHeight(),s=getResources().getDisplayMetrics().density;
-            rect(c,0,0,w,h,0xff060c08);float base=h*.45f;
+            rect(c,0,0,w,h,0xff060c08);float base=(h-26*s)/2;
             for(int i=1;i<8;i++)rect(c,i*w/8,0,i*w/8+1,h-24*s,0xff102719);
             if(duration>0){
-                float a=(float)(start/duration*w),b=(float)(end/duration*w);
+                clampViewport();float a=xAt(start),b=xAt(end);
                 p.setShader(new LinearGradient(0,0,0,h,new int[]{0xff124517,0xff167624,0xff08240d},null,Shader.TileMode.CLAMP));
-                c.drawRect(a,0,b,h-26*s,p);p.setShader(null);
-                p.setColor(LED);p.setStrokeWidth(Math.max(1,w/Math.max(1,peaks.length)));
-                for(int i=0;i<peaks.length;i++){
-                    float x=(i+.5f)*w/peaks.length,amp=Math.min(1,peaks[i])*base*.92f;
+                c.drawRect(Math.min(w,Math.max(0,a)),0,Math.max(0,Math.min(w,b)),h-26*s,p);p.setShader(null);
+                p.setColor(LED);p.setStrokeWidth(1);
+                for(int x=0;x<(int)w;x++){
+                    int lo=Math.max(0,(int)(timeAt(x)/duration*peaks.length)),hi=Math.min(peaks.length,Math.max(lo+1,(int)Math.ceil(timeAt(x+1)/duration*peaks.length)));
+                    float peak=0;for(int i=lo;i<hi;i++)peak=Math.max(peak,peaks[i]);float amp=Math.min(1,peak)*base*.92f;
                     c.drawLine(x,base-amp,x,base+amp,p);
                 }
                 for(float x:new float[]{a,b}){
+                    if(x<0||x>w)continue;
                     rect(c,x-1.5f*s,0,x+1.5f*s,h-26*s,0xffffe600);
                     rect(c,Math.max(0,x-5*s),0,Math.min(w,x+5*s),10*s,0xffffe600);
                     rect(c,Math.max(0,x-5*s),h-37*s,Math.min(w,x+5*s),h-26*s,0xffffe600);
                 }
-                if(position>=start&&position<=end)rect(c,(float)(position/duration*w),0,(float)(position/duration*w)+s,h-26*s,Color.WHITE);
+                if(position>=viewStart&&position<=visibleEnd())rect(c,xAt(position),0,xAt(position)+s,h-26*s,Color.WHITE);
             } else label(c,"OPEN AUDIO TO VIEW WAVEFORM",14*s,base,0xff5b8464,11*s);
             rect(c,0,h-26*s,w,h-25*s,0xff979ba0);
             for(int i=0;i<=4;i++){
                 float x=i*w/4;rect(c,x,h-26*s,x+s,h-19*s,0xffcacdd0);
-                String time=String.format(java.util.Locale.US,"%d:%02d",(int)(duration*i/4)/60,(int)(duration*i/4)%60);
-                label(c,time,Math.min(w-42*s,Math.max(2*s,x-12*s)),h-4*s,0xffe4e5e2,11*s);
+                double seconds=viewStart+span()*i/4;String time=span()<10?String.format(java.util.Locale.US,"%d:%06.3f",(int)seconds/60,seconds-((int)seconds/60)*60):String.format(java.util.Locale.US,"%d:%02d",(int)seconds/60,(int)seconds%60);
+                p.setTextSize(11*s);float textWidth=p.measureText(time);
+                label(c,time,Math.min(w-textWidth-2*s,Math.max(2*s,x-textWidth/2)),h-4*s,0xffe4e5e2,11*s);
             }
         }
         @Override public boolean onTouchEvent(MotionEvent e){
             if(duration<=0)return false;
-            double t=Math.max(0,Math.min(duration,e.getX()/getWidth()*duration));
-            if(e.getAction()==MotionEvent.ACTION_DOWN){draggingStart=Math.abs(t-start)<Math.abs(t-end);getParent().requestDisallowInterceptTouchEvent(true);}
-            if(e.getAction()==MotionEvent.ACTION_DOWN||e.getAction()==MotionEvent.ACTION_MOVE){
-                if(draggingStart)start=Math.min(t,end);else end=Math.max(t,start);
-                if(selection!=null)selection.set(start,end);invalidate();return true;
+            int action=e.getActionMasked();float density=getResources().getDisplayMetrics().density;
+            if(action==MotionEvent.ACTION_DOWN){
+                downX=lastX=e.getX();downY=e.getY();moved=false;multiple=false;dragMode=0;
+                float a=xAt(start),b=xAt(end),distance=24*density;
+                if(a>=-distance&&a<=getWidth()+distance&&Math.abs(downX-a)<=distance)dragMode=1;
+                if(b>=-distance&&b<=getWidth()+distance&&Math.abs(downX-b)<=distance&&(dragMode==0||Math.abs(downX-b)<Math.abs(downX-a)))dragMode=2;
+                getParent().requestDisallowInterceptTouchEvent(true);
             }
-            if(e.getAction()==MotionEvent.ACTION_UP){getParent().requestDisallowInterceptTouchEvent(false);performClick();return true;}return true;
+            if(e.getPointerCount()>1)multiple=true;scale.onTouchEvent(e);
+            if(action==MotionEvent.ACTION_MOVE&&!multiple){
+                float dx=e.getX()-downX,dy=e.getY()-downY;int slop=ViewConfiguration.get(getContext()).getScaledTouchSlop();
+                if(Math.abs(dx)>slop||Math.abs(dy)>slop)moved=true;
+                if(dragMode==0&&Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>slop){getParent().requestDisallowInterceptTouchEvent(false);return false;}
+                if(dragMode!=0){
+                    if(zoom>1&&(e.getX()<16*density||e.getX()>getWidth()-16*density)){viewStart+=(e.getX()<16*density?-1:1)*span()*.02;clampViewport();}
+                    targetStart=dragMode==1;place(timeAt(e.getX()),targetStart);
+                }else if(moved){viewStart+=(lastX-e.getX())/Math.max(1,getWidth())*span();changed();}
+                lastX=e.getX();
+            }
+            if(action==MotionEvent.ACTION_UP){
+                if(!multiple&&!moved){targetStart=dragMode==0?targetStart:dragMode==1;place(timeAt(e.getX()),targetStart);performClick();}
+                getParent().requestDisallowInterceptTouchEvent(false);changed();return true;
+            }
+            if(action==MotionEvent.ACTION_CANCEL){getParent().requestDisallowInterceptTouchEvent(false);changed();}return true;
         }
         @Override public boolean performClick(){super.performClick();return true;}
     }

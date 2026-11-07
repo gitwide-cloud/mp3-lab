@@ -122,16 +122,34 @@ jobs:
           gradle-version: '8.9'
       - name: Install Android SDK 35
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Restore persistent APK signing key
+        env:
+          ANDROID_SIGNING_KEYSTORE: ${{ secrets.ANDROID_SIGNING_KEYSTORE }}
+        run: |
+          python - <<'PY'
+          import base64, os, pathlib
+          key = os.environ.get('ANDROID_SIGNING_KEYSTORE', '')
+          if not key: raise SystemExit('Persistent Android signing key is required for published APKs')
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'mp3-lab-preview.p12'
+          path.write_bytes(base64.b64decode(key, validate=True))
+          with open(os.environ['GITHUB_ENV'], 'a') as env: env.write('MP3_LAB_KEYSTORE=' + str(path) + '\n')
+          PY
       - name: Compile Android APK
+        env:
+          MP3_LAB_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
         run: |
           python ../tools/prepare_android_sources.py
           gradle :app:assembleDebug :app:assembleDebugAndroidTest lintDebug --stacktrace
       - name: Name APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk ../mp3-lab.apk
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk ../mp3-lab.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs ../mp3-lab.apk > ../android-signing-certificate.txt
       - uses: actions/upload-artifact@v4
         with:
           name: mp3-lab-android
-          path: mp3-lab.apk
+          path: |
+            mp3-lab.apk
+            android-signing-certificate.txt
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
@@ -161,8 +179,9 @@ jobs:
           test -s dist/android-third-party-sources.zip
           cp THIRD_PARTY_NOTICES.md dist/
           cp assets/screenshots/android.png dist/android-skin.png
+          cp assets/screenshots/android-zoom.png dist/android-zoom.png
           cd dist
-          sha256sum *.zip *.apk *.exe *.tar.gz *.png THIRD_PARTY_NOTICES.md > SHA256SUMS.txt
+          sha256sum *.zip *.apk *.exe *.tar.gz *.png android-signing-certificate.txt THIRD_PARTY_NOTICES.md > SHA256SUMS.txt
           cd ..
           ls -lh dist
       - name: Publish preview release
@@ -170,6 +189,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "v0.2.0-preview.${{ github.run_number }}" dist/* \
-            --target "${{ github.sha }}" --title "mp3⚡lab v0.2.0 preview ${{ github.run_number }}" --prerelease \
-            --notes "Reference-inspired metallic player skin, real waveform and supplied app icon. Windows users: download mp3-lab-setup.exe. The installer includes FFmpeg, FFprobe and FFplay; no separate audio-tool installation is required. The installed application is the current Windows priority; portable development is deferred. Installed audio tools are tested with a system-only PATH. Linux ZIP requires system FFmpeg and desktop libraries. Rust tests, audio export tests, desktop screenshot check and Android lint pass in CI. Android ARM64 is debug-signed for sideloading; updates may require uninstalling a preview with a different key. Dependency notices and corresponding audio sources are included. Verify downloads with SHA256SUMS.txt."
+          gh release create "v0.2.1-preview.${{ github.run_number }}" dist/* \
+            --target "${{ github.sha }}" --title "mp3⚡lab Android 0.2.1 — saved sessions and precision trim" --prerelease \
+            --notes "Android 0.2.1: preserves editing sessions through rotation, Activity recreation and background/reopen; keeps the screen on while a track is open; adds pinch/button waveform zoom, panning, IN/OUT placement and 1 ms nudges. Audio copies and atomic editing checkpoints stay in app-private storage. Sessions survive app restarts but not uninstalling or clearing app data; unfinished exports must be restarted. Persistent APK signing starts with this release so future upgrades can retain app data. Older previews used temporary debug keys and may require a one-time uninstall: export any current work first. The APK remains a development preview. Windows users: install mp3-lab-setup.exe; it includes all required audio tools. Portable development is deferred. Linux requires system FFmpeg and desktop libraries. Sources, notices, screenshots and SHA256SUMS.txt are attached."
