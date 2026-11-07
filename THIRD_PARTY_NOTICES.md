@@ -5,7 +5,15 @@ Original MP3 Lab code is MIT licensed; see LICENSE. This does not relicense its 
 Desktop uses eframe/egui (MIT OR Apache-2.0), rfd (MIT), and their dependencies.
 Each desktop ZIP includes dependency versions, license expressions and the license/notice files
 distributed by the resolved Rust crates in `licenses/`. Cargo.lock records exact versions.
-FFmpeg, ffprobe and ffplay are separate programs installed by the user, not bundled in desktop ZIPs.
+Windows bundles FFmpeg 8.1.3, LAME 3.100 and SDL2 2.32.10 as separate executables built from
+preserved source. The LGPL FFmpeg build does not enable GPL or nonfree components. Windows
+packages include the libraries' license texts; `windows-audio-sources.tar.gz` contains the source
+archives and the complete cross-compilation recipe used for those binaries. Users may rebuild,
+modify and replace these executables. The editor launches them as separate processes.
+The Windows editor statically links its C runtime and needs no separate Visual C++ installer.
+Linux uses the user's system FFmpeg. The desktop skin embeds Arimo fonts under the SIL Open
+Font License; the license text is included in each desktop ZIP. Font source:
+https://github.com/googlefonts/arimo (Arimo-Regular, Arimo-Bold and Arimo-BoldItalic).
 
 Android dynamically links the unmodified `dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.9`
 libraries under LGPL-3.0. FFmpeg copyright belongs to its contributors; FFmpegKit was originally

@@ -7,6 +7,7 @@ with zipfile.ZipFile(root/f'mp3-lab-{platform}.zip','w',zipfile.ZIP_DEFLATED,str
     z.write(root/'desktop/target/release'/binary,binary)
     for name in ['README.md','LICENSE','THIRD_PARTY_NOTICES.md']:z.write(root/name,name)
     z.write(root/'desktop/Cargo.lock','Cargo.lock')
+    z.write(root/'assets/fonts/OFL.txt','licenses/Arimo-OFL.txt')
     if platform=='windows':
         z.write(root/'assets/mp3-lab.ico','mp3-lab.ico')
         for f in (root/'windows-runtime').rglob('*'):

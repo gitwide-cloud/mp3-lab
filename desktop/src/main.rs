@@ -25,7 +25,7 @@ impl Editor {
     }
     fn resume(&mut self){
         let Some(path)=&self.preview_path else{return};
-        match Command::new(tool("ffplay")).args(["-hide_banner","-loglevel","error","-nodisp","-autoexit","-volume"])
+        match command("ffplay").args(["-hide_banner","-loglevel","error","-nodisp","-autoexit","-volume"])
             .arg(format!("{:.0}",self.volume)).arg("-ss").arg(format!("{:.5}",self.offset)).arg("-i").arg(path)
             .stdout(Stdio::null()).stderr(Stdio::null()).spawn(){
             Ok(p)=>{self.player=Some(p);self.started=Some(std::time::Instant::now());self.paused=false;self.status="Playing preview".into();},
@@ -76,7 +76,7 @@ impl Editor {
         self.status=if edited{"Preparing edited preview…".into()}else{"Preparing original preview…".into()};
         thread::spawn(move||{
             let output=std::env::temp_dir().join(format!("mp3-lab-preview-{}-{}.wav",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
-            let result=Command::new(tool("ffmpeg")).args(["-hide_banner","-nostdin","-y","-loglevel","error","-ss"]).arg(format!("{start:.5}"))
+            let result=command("ffmpeg").args(["-hide_banner","-nostdin","-y","-loglevel","error","-ss"]).arg(format!("{start:.5}"))
                 .arg("-i").arg(p).arg("-t").arg(format!("{length:.5}")).args(["-vn","-af"]).arg(filter).args(["-c:a","pcm_s16le","-ar","48000"]).arg(&output).output();
             let result=match result{Ok(r) if r.status.success()=>Ok(output.clone()),Ok(r)=>Err(String::from_utf8_lossy(&r.stderr).into_owned()),Err(e)=>Err(e.to_string())};
             let failed=result.is_err();if tx.send(result).is_err()||failed{let _=std::fs::remove_file(output);}
@@ -92,7 +92,7 @@ impl Editor {
         let start=self.start;let length=self.length();let filters=self.filter();
         self.status="Exporting 256 kbps MP3".into();
         thread::spawn(move||{
-            let result=Command::new(tool("ffmpeg")).args(["-hide_banner","-nostdin","-y","-loglevel","error","-ss"])
+            let result=command("ffmpeg").args(["-hide_banner","-nostdin","-y","-loglevel","error","-ss"])
                 .arg(format!("{start:.5}")).arg("-i").arg(&input).arg("-t").arg(format!("{length:.5}"))
                 .args(["-vn","-af"]).arg(filters).args(["-codec:a","libmp3lame","-b:a","256k","-id3v2_version","3"])
                 .arg(&output).output();
@@ -112,8 +112,12 @@ fn tool(n:&str)->PathBuf{
     }
     filename.into()
 }
-fn duration(p:&Path)->Result<f64,String>{
-    let o=Command::new(tool("ffprobe")).args(["-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1"])
+fn command(name:&str)->Command{
+    let mut cmd=Command::new(tool(name));
+    #[cfg(windows)] {use std::os::windows::process::CommandExt;cmd.creation_flags(0x08000000);}
+    cmd
+}fn duration(p:&Path)->Result<f64,String>{
+    let o=command("ffprobe").args(["-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1"])
         .arg(p).output().map_err(|e|e.to_string())?;
     if !o.status.success(){return Err(String::from_utf8_lossy(&o.stderr).to_string())}
     String::from_utf8_lossy(&o.stdout).trim().parse().map_err(|_|"Duration unavailable".into())
@@ -121,7 +125,7 @@ fn duration(p:&Path)->Result<f64,String>{
 fn clock(sec:f64)->String{let m=(sec/60.0).floor() as u64; format!("{}:{:05.2}",m,sec-(m*60) as f64)}
 fn read_waveform(path:&Path,duration:f64)->Result<Vec<[f32;2]>,String>{
     use std::io::Read;
-    let mut child=Command::new(tool("ffmpeg")).args(["-hide_banner","-loglevel","error","-i"]).arg(path).args(["-vn","-ac","2","-ar","2000","-f","f32le","pipe:1"])
+    let mut child=command("ffmpeg").args(["-hide_banner","-loglevel","error","-i"]).arg(path).args(["-vn","-ac","2","-ar","2000","-f","f32le","pipe:1"])
         .stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|e|e.to_string())?;
     let mut stream=std::io::BufReader::new(child.stdout.take().unwrap());let mut frame=[0u8;8];let mut bins=vec![[0.0f32;2];1600];let mut index=0usize;
     while stream.read_exact(&mut frame).is_ok(){
@@ -171,7 +175,7 @@ impl eframe::App for Editor{
  }
 }
 fn main()->eframe::Result{
-    let mut viewport=egui::ViewportBuilder::default().with_inner_size([1040.0,710.0]).with_min_inner_size([930.0,670.0]).with_decorations(false);
+    let mut viewport=egui::ViewportBuilder::default().with_inner_size([1100.0,780.0]).with_min_inner_size([980.0,740.0]).with_decorations(false);
     if let Ok(icon)=eframe::icon_data::from_png_bytes(include_bytes!("../../assets/icon.png")){viewport=viewport.with_icon(icon);}
     let opt=eframe::NativeOptions{viewport,..Default::default()};
     eframe::run_native("mp3ϟlab",opt,Box::new(|cc|{
@@ -201,12 +205,12 @@ mod tests {
         let dir=std::env::temp_dir().join(format!("mp3-lab-test-{}",std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let input=dir.join("source.wav");let output=dir.join("clip.mp3");
-        assert!(Command::new(tool("ffmpeg")).args(["-y","-f","lavfi","-i","sine=frequency=440:duration=8"]).arg(&input).output().unwrap().status.success());
+        assert!(command("ffmpeg").args(["-y","-f","lavfi","-i","sine=frequency=440:duration=8"]).arg(&input).output().unwrap().status.success());
         let mut e=Editor::default();e.start=2.0;e.end=6.0;e.normalize=true;e.gain=-3.0;e.fade_in=0.5;e.fade_out=0.5;
-        let result=Command::new(tool("ffmpeg")).args(["-y","-ss","2","-i"]).arg(&input).args(["-t","4","-vn","-af"]).arg(e.filter()).args(["-codec:a","libmp3lame","-b:a","256k"]).arg(&output).output().unwrap();
+        let result=command("ffmpeg").args(["-y","-ss","2","-i"]).arg(&input).args(["-t","4","-vn","-af"]).arg(e.filter()).args(["-codec:a","libmp3lame","-b:a","256k"]).arg(&output).output().unwrap();
         assert!(result.status.success(),"{}",String::from_utf8_lossy(&result.stderr));
         assert!((duration(&output).unwrap()-4.0).abs()<0.15);
-        let probe=Command::new(tool("ffprobe")).args(["-v","error","-select_streams","a:0","-show_entries","stream=codec_name,bit_rate","-of","csv=p=0"]).arg(&output).output().unwrap();
+        let probe=command("ffprobe").args(["-v","error","-select_streams","a:0","-show_entries","stream=codec_name,bit_rate","-of","csv=p=0"]).arg(&output).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&probe.stdout).trim(),"mp3,256000");
         std::fs::remove_dir_all(dir).unwrap();
     }
