@@ -40,10 +40,11 @@ public class MainActivity extends Activity {
     Retro.Meter meter;
     ScrollView editorScroll;
     TextView zoomLabel;
-    Button inTarget,outTarget;
+    Button inTarget,outTarget,seekTarget;
+    double playbackStart,playbackEnd,pendingSeek;
     final Runnable checkpoint=()->SessionStore.save(this);
     final Runnable playbackTick=new Runnable(){public void run(){
-        if(player!=null&&waveformView!=null){try{waveformView.position=start+player.getCurrentPosition()/1000.0;waveformView.invalidate();clock.setText(time(waveformView.position)+" / "+time(duration));if(meter!=null)meter.invalidate();}catch(IllegalStateException ignored){}}
+        if(player!=null&&waveformView!=null){try{waveformView.position=playbackStart+player.getCurrentPosition()/1000.0;waveformView.invalidate();clock.setText(time(waveformView.position)+" / "+time(duration));if(meter!=null)meter.invalidate();}catch(IllegalStateException ignored){}}
         handler.postDelayed(this,80);
     }};
     int dp(int x){return (int)(x*getResources().getDisplayMetrics().density);}
@@ -95,7 +96,7 @@ public class MainActivity extends Activity {
         if(fadeOutLabel!=null)fadeOutLabel.setText(String.format(Locale.US,"Fade Out  %.2f s",fadeOut));
         if(gainLabel!=null)gainLabel.setText(String.format(Locale.US,"Gain: %+.1f dB",gainDb));
         if(clipLabel!=null)clipLabel.setText("Start    "+time(start)+"\nEnd      "+time(end)+"\nLength   "+time(len));
-        if(waveformView!=null){waveformView.peaks=waveform;waveformView.duration=duration;waveformView.start=start;waveformView.end=end;waveformView.position=start;waveformView.invalidate();}
+        if(waveformView!=null){waveformView.peaks=waveform;waveformView.duration=duration;waveformView.start=start;waveformView.end=end;waveformView.position=Math.max(0,Math.min(duration,waveformView.position));waveformView.invalidate();}
         if(meter!=null)meter.invalidate();
         if(input!=null)getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         refreshZoom();scheduleSessionSave();
@@ -180,14 +181,15 @@ public class MainActivity extends Activity {
     String command(File output,boolean edited){
         StringBuilder b=new StringBuilder(String.format(Locale.US,"-y -nostdin -hide_banner -loglevel error -ss %.5f ",start));
         b.append("-i ").append(quote(input.getAbsolutePath()));
-        b.append(String.format(Locale.US," -t %.5f -vn ",end-start));
+        b.append(String.format(Locale.US," -t %.5f -map 0:a:0 -vn -map_metadata -1 ",end-start));
         if(edited)b.append("-af ").append(quote(filters())).append(' ');
-        return b.append("-codec:a libmp3lame -b:a 256k ").append(quote(output.getAbsolutePath())).toString();
+        return b.append("-codec:a libmp3lame -b:a 256k -ar 44100 -ac 2 -f mp3 ").append(quote(output.getAbsolutePath())).toString();
     }
     void preview(boolean edited){
         if(input==null||busy)return;
         if(end-start<.05){report("Choose a longer clip");return;}
-        stop();busy=true;report("Preparing preview...");
+        double requested=waveformView.position;
+        stop();playbackStart=start;playbackEnd=end;pendingSeek=Math.max(start,Math.min(end-.001,requested));busy=true;report("Preparing preview...");
         int generation=previewGeneration;
         File dest=new File(getCacheDir(),"mp3_lab_preview.mp3");
         FFmpegKit.executeAsync(command(dest,edited),session->{
@@ -199,10 +201,18 @@ public class MainActivity extends Activity {
                 try{
                     player=new MediaPlayer();player.setDataSource(dest.getAbsolutePath());
                     player.prepare();player.setOnCompletionListener(mp->{stop();report("Preview finished");});
+                    player.seekTo((long)((pendingSeek-playbackStart)*1000),MediaPlayer.SEEK_CLOSEST);
                     player.start();report(edited?"Playing edited preview":"Playing original clip");
                 }catch(Exception e){report(e.getMessage());}finally{busy=false;}
             });
         });
+    }
+    void seekPlayback(double seconds){
+        double lo=player!=null||busy?playbackStart:start,hi=player!=null||busy?playbackEnd:end;
+        double target=Math.max(lo,Math.min(Math.max(lo,hi-.001),seconds));pendingSeek=target;
+        if(player!=null)try{player.seekTo((long)((target-playbackStart)*1000),MediaPlayer.SEEK_CLOSEST);}catch(IllegalStateException e){report("Seek failed: "+e.getMessage());return;}
+        waveformView.position=target;waveformView.invalidate();clock.setText(time(target)+" / "+time(duration));
+        if(target!=seconds)report("Preview seeks within the selected clip. Move IN/OUT to include more audio.");
     }
     void stop(){
         previewGeneration++;
@@ -223,10 +233,15 @@ public class MainActivity extends Activity {
         FFmpegKit.executeAsync(command(temp,true),session->{
             if(!ReturnCode.isSuccess(session.getReturnCode())){report("Encoding failed");busy=false;return;}
             new Thread(()->{
-                try(InputStream in=new FileInputStream(temp);
-                    OutputStream out=getContentResolver().openOutputStream(uri,"w")){
-                    if(out==null)throw new IOException("Output not writable");
-                    copy(in,out);report("Saved 256 kbps MP3");
+                try{
+                    try(InputStream in=new FileInputStream(temp);OutputStream out=getContentResolver().openOutputStream(uri,"wt")){
+                        if(out==null)throw new IOException("Output not writable");copy(in,out);out.flush();
+                    }
+                    MediaMetadataRetriever check=new MediaMetadataRetriever();
+                    try{check.setDataSource(this,uri);String length=check.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                        if(length==null||Long.parseLong(length)<=0)throw new IOException("Saved file has no playable audio");
+                    }finally{check.release();}
+                    report("Saved and verified 256 kbps MP3");
                 }catch(Exception e){report("Save failed: "+e.getMessage());}
                 finally{busy=false;temp.delete();}
             }).start();

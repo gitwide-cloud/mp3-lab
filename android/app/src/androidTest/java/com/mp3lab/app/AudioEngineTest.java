@@ -62,6 +62,40 @@ public class AudioEngineTest {
             player.setDataSource(output.toString());player.prepare();player.start();
             assertTrue(player.isPlaying());player.stop();player.release();
             run("-y -i "+output+" -af astats -f null -");
+            // Exercise the real Android document output path, not just the encoder's cache file.
+            android.content.ContentValues values=new android.content.ContentValues();
+            values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME,"mp3-lab-export-test.mp3");
+            values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE,"audio/mpeg");
+            android.net.Uri saved=activity.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);
+            assertNotNull(saved);
+            try{
+                try(java.io.OutputStream stale=activity.getContentResolver().openOutputStream(saved,"w")){stale.write(new byte[300000]);}
+                InstrumentationRegistry.getInstrumentation().runOnMainSync(()->activity.export(saved));
+                long deadline=android.os.SystemClock.uptimeMillis()+30000;
+                while(activity.busy&&android.os.SystemClock.uptimeMillis()<deadline)Thread.sleep(50);
+                assertFalse("Export timed out",activity.busy);
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+                InstrumentationRegistry.getInstrumentation().runOnMainSync(()->assertEquals("Saved and verified 256 kbps MP3",activity.status.getText().toString()));
+                android.media.MediaPlayer savedPlayer=new android.media.MediaPlayer();
+                try{savedPlayer.setDataSource(activity,saved);savedPlayer.prepare();assertEquals(4000,savedPlayer.getDuration(),150);savedPlayer.start();assertTrue(savedPlayer.isPlaying());}finally{savedPlayer.release();}
+                // Tap seeking must change the real player position, including a nonzero clip offset.
+                InstrumentationRegistry.getInstrumentation().runOnMainSync(()->activity.preview(true));
+                deadline=android.os.SystemClock.uptimeMillis()+30000;
+                while(activity.busy&&android.os.SystemClock.uptimeMillis()<deadline)Thread.sleep(50);
+                InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+                    assertNotNull(activity.player);activity.player.pause();activity.waveformView.placing=false;activity.waveformView.fit();
+                    Retro.Wave w=activity.waveformView;float x=w.getWidth()*4.0f/8,y=w.getHeight()*.4f;long now=android.os.SystemClock.uptimeMillis();
+                    android.view.MotionEvent down=android.view.MotionEvent.obtain(now,now,0,x,y,0),up=android.view.MotionEvent.obtain(now,now+20,1,x,y,0);
+                    w.onTouchEvent(down);w.onTouchEvent(up);down.recycle();up.recycle();
+                    assertEquals(2,activity.start,0);assertEquals(6,activity.end,0);
+                });
+                Thread.sleep(250);
+                InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+                    assertEquals("Actual player seeks relative to the rendered clip",2000,activity.player.getCurrentPosition(),150);
+                    assertEquals(4,activity.waveformView.position,.15);activity.stop();
+                });
+            }finally{activity.getContentResolver().delete(saved,null,null);}
+
         } finally {
             InstrumentationRegistry.getInstrumentation().runOnMainSync(activity::finish);
             source.delete();output.delete();

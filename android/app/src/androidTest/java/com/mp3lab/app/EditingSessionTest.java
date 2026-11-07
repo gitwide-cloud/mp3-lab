@@ -77,7 +77,7 @@ public class EditingSessionTest {
         File source=fixture();
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             bind(scenario,source);
-            scenario.onActivity(a->{Retro.Wave w=a.waveformView;a.start=1;a.end=11;a.refresh();w.restoreViewport(4,3,true);
+            scenario.onActivity(a->{Retro.Wave w=a.waveformView;a.start=1;a.end=11;a.refresh();w.restoreViewport(4,3,true);w.placing=true;
                 float width=w.getWidth(),y=w.getHeight()*.4f;assertTrue(width>0);
                 long down=SystemClock.uptimeMillis();touch(w,down,down,MotionEvent.ACTION_DOWN,width*.5f,y);touch(w,down,down+30,MotionEvent.ACTION_UP,width*.5f,y);
                 assertEquals("IN uses zoomed viewport, not whole-track coordinates",4.5,a.start,1e-4);

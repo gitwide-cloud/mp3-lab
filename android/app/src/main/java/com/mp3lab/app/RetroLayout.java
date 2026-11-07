@@ -35,24 +35,25 @@ final class RetroLayout {
                 else if(which==2)a.preview(a.editedPreview);else if(which==3){if(a.player!=null){if(a.player.isPlaying())a.player.pause();else a.player.start();}}
                 else{a.stop();a.report("Stopped");}});
         }a.add(a.root,transport);
-        a.waveformView=new Retro.Wave(a);a.waveformView.selection=(start,end)->{a.start=start;a.end=end;a.refresh();};
+        a.waveformView=new Retro.Wave(a);a.waveformView.selection=(start,end)->{a.stop();a.start=start;a.end=end;a.refresh();a.waveformView.position=a.waveformView.targetStart?start:end;};
+        a.waveformView.seek=a::seekPlayback;
         a.waveformView.viewChanged=()->{a.refreshZoom();a.scheduleSessionSave();};
         LinearLayout waveBox=a.column();waveBox.setPadding(a.dp(5),a.dp(6),a.dp(5),a.dp(5));waveBox.setBackground(Retro.plate(false));
         waveBox.addView(a.waveformView,new LinearLayout.LayoutParams(-1,a.dp(176)));
         LinearLayout zoomControls=new LinearLayout(a);String[] zoomTitles={"IN","OUT","−","+","Fit"};
         for(int n=0;n<zoomTitles.length;n++){
             final int which=n;Button button=new Button(a);button.setText(zoomTitles[n]);Retro.button(button);
-            button.setContentDescription(new String[]{"Select and focus IN point","Select and focus OUT point","Zoom out","Zoom in","Show whole track"}[n]);
+            button.setContentDescription(new String[]{"Select and focus IN point","Select and focus OUT point","Zoom out","Zoom in","Show whole track","Tap waveform to seek playback"}[n]);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,a.dp(42),1);p.setMargins(a.dp(2),a.dp(3),a.dp(2),a.dp(3));zoomControls.addView(button,p);
-            if(n==0)a.inTarget=button;if(n==1)a.outTarget=button;
-            button.setOnClickListener(v->{if(which==0)a.waveformView.focusMarker(true);else if(which==1)a.waveformView.focusMarker(false);else if(which==2)a.waveformView.zoomBy(.5);else if(which==3)a.waveformView.zoomBy(2);else a.waveformView.fit();});
+            if(n==0)a.inTarget=button;if(n==1)a.outTarget=button;if(n==5)a.seekTarget=button;
+            button.setOnClickListener(v->{if(which==0)a.waveformView.focusMarker(true);else if(which==1)a.waveformView.focusMarker(false);else if(which==2)a.waveformView.zoomBy(.5);else if(which==3)a.waveformView.zoomBy(2);else if(which==4)a.waveformView.fit();else{a.waveformView.placing=false;a.refreshZoom();}});
         }a.add(waveBox,zoomControls);
         LinearLayout precision=new LinearLayout(a);
         for(int direction:new int[]{-1,1}){Button nudge=new Button(a);Retro.button(nudge);nudge.setText(direction<0?"−1 ms":"+1 ms");
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,a.dp(38),1);p.setMargins(a.dp(2),a.dp(2),a.dp(2),a.dp(2));precision.addView(nudge,p);
             nudge.setOnClickListener(v->a.waveformView.nudge(direction*.001));}
         a.add(waveBox,precision);a.zoomLabel=a.label("1×",12,Retro.BLUE);a.add(waveBox,a.zoomLabel);
-        a.add(waveBox,a.label("Pinch or +/− to zoom; drag to pan. Select IN/OUT, then tap to place.",12,0xffb0bac5));a.add(a.root,waveBox);
+        a.add(waveBox,a.label("Pinch or +/− to zoom; drag to pan. Seek: tap to hear. IN/OUT: tap to trim.",12,0xffb0bac5));a.add(a.root,waveBox);
         LinearLayout clip=a.column();a.clipLabel=a.label("Start 0:00   End 0:00",16,Color.WHITE);a.clipLabel.setTypeface(Typeface.MONOSPACE);a.clipLabel.setBackgroundColor(0xff090d12);a.add(clip,a.clipLabel);
         a.clipLabel.setOnClickListener(v->new android.app.AlertDialog.Builder(a).setTitle("Trim time").setItems(new String[]{"Start","End"},(d,index)->{
             if(index==0)number(a,"Clip start",a.start,0,a.duration,x->{a.start=Math.min(x,a.end);a.refresh();});else number(a,"Clip end",a.end,a.start,a.duration,x->{a.end=x;a.refresh();});}).show());

@@ -8,7 +8,7 @@ Free, open-source clip editor with a retro Winamp-inspired interface. MP3 Lab ha
 
 **[GitHub Releases](https://github.com/gitwide-cloud/mp3-lab/releases)**
 
-Every push to `main` starts GitHub Actions jobs for Windows, Linux and Android. A versioned `v0.2.1-preview.N` release is published **only if all three builds and required checks succeed**. Existing releases are preserved. Check [Actions](https://github.com/gitwide-cloud/mp3-lab/actions) for results. These are preview builds.
+Every push to `main` starts GitHub Actions jobs for Windows, Linux and Android. A versioned `v0.2.2-preview.N` release is published **only if all three builds and required checks succeed**. Existing releases are preserved. Check [Actions](https://github.com/gitwide-cloud/mp3-lab/actions) for results. These are preview builds.
 
 **Windows: download `mp3-lab-setup.exe` and install the app.** The current priority is verifying the installed Windows application. Portable development is deferred until that workflow is working reliably.
 
@@ -56,13 +56,13 @@ The app uses `dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.9` to encode audio l
 ## Development status and limitations
 
 - Rust selection/filter tests run on Windows and Linux. Linux CI also generates audio and verifies an actual 256 kbps MP3 export and trim duration.
-- On November 7, 2026, the connected Pixel 7 (Android 16) passed three instrumentation tests covering rotation, Activity recreation, disk session recovery, waveform zoom/pan/pinch and precise trim placement, plus real audio trim, fades, gain, normalization, MP3 bitrate/duration and MediaPlayer playback. Run `gradle -Pqa :app:connectedDebugAndroidTest` to repeat.
+- On November 7, 2026, the connected Pixel 7 (Android 16) passed three instrumentation tests covering rotation, Activity recreation, disk session recovery, waveform zoom/pan/pinch and precise trim placement, plus real audio trim, fades, gain, normalization, MP3 bitrate/duration, saving and replacing an Android document, playing that saved URI and actual preview seeking. Run `gradle -Pqa :app:connectedDebugAndroidTest` to repeat.
 - Screenshots of the actual Linux desktop UI and Android layout are reviewed. Windows packaging tests the included tools with only Windows system directories on PATH, then silently installs the installer into a fresh folder and repeats audio tests. Manual listening and a complete file-picker/save workflow have not been fully validated.
 - Android APKs remain development previews. From 0.2.1, CI uses a persistent signing key so future upgrades retain app data. Older previews used temporary keys: if Android rejects the upgrade, export current work before a one-time uninstall. Uninstalling or clearing app data deletes saved sessions.
 - Both apps use the supplied metallic player reference, with real decoded audio waveforms, yellow trim handles, green displays, blue sliders and metallic controls. The mobile layout stacks panels for touch use; it is not a screenshot pasted over the app.
 - Android is written in Java; the desktop apps are written in Rust.
 - Android saves imported audio and editing settings in app-private storage and restores them after rotation or reopening. The screen stays on while a track is open and the app is visible. Unfinished exports must be restarted.
-- Pinch or use +/− to zoom the waveform; drag horizontally to pan. Select IN/OUT and tap to place, drag yellow handles, or use 1 ms nudges. Fit shows the whole track. Tap clip times or fade/gain values for exact numeric entry.
+- Pinch or use +/− to zoom the waveform; drag horizontally to pan. Select Seek and tap to move actual preview playback within the selected clip. Select IN/OUT and tap to place trim points, drag yellow handles, or use 1 ms nudges. Fit shows the whole track. Tap clip times or fade/gain values for exact numeric entry.
 - Linux desktop depends on system libraries and FFmpeg; binaries are not AppImages.
 - Windows bundles an LGPL FFmpeg build. Linux uses system audio tools. Source archives and notices accompany releases.
 

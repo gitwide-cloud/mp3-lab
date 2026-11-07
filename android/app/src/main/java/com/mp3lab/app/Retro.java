@@ -60,8 +60,8 @@ final class Retro {
         }
     }
     static final class Wave extends View {
-        float[] peaks=new float[0];double duration,start,end,position,zoom=1,viewStart;boolean targetStart=true;
-        Selection selection;Runnable viewChanged;final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
+        float[] peaks=new float[0];double duration,start,end,position,zoom=1,viewStart;boolean targetStart=true,placing=false;
+        Selection selection;java.util.function.DoubleConsumer seek;Runnable viewChanged;final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final ScaleGestureDetector scale;float downX,downY,lastX;int dragMode;boolean moved,multiple;
         Wave(Context c){super(c);setContentDescription("Zoomable audio waveform. Pinch to zoom, drag to pan, or drag yellow trim handles.");setFocusable(true);
             scale=new ScaleGestureDetector(c,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
@@ -80,7 +80,7 @@ final class Retro {
         void restoreViewport(double scale,double offset,boolean in){zoom=scale;viewStart=offset;targetStart=in;changed();}
         void fit(){zoom=1;viewStart=0;changed();}
         void zoomBy(double factor){double anchor=targetStart?start:end;zoom=Math.max(1,Math.min(maxZoom(),zoom*factor));viewStart=anchor-span()/2;changed();}
-        void focusMarker(boolean in){targetStart=in;double marker=in?start:end;if(marker<viewStart||marker>visibleEnd())viewStart=marker-span()/2;changed();}
+        void focusMarker(boolean in){placing=true;targetStart=in;double marker=in?start:end;if(marker<viewStart||marker>visibleEnd())viewStart=marker-span()/2;changed();}
         double timeAt(float x){return Math.max(0,Math.min(duration,viewStart+Math.max(0,Math.min(1,x/Math.max(1,getWidth())))*span()));}
         float xAt(double seconds){return span()>0?(float)((seconds-viewStart)/span()*getWidth()):0;}
         void place(double time,boolean in){if(in)start=Math.min(time,end);else end=Math.max(time,start);if(selection!=null)selection.set(start,end);invalidate();}
@@ -139,7 +139,7 @@ final class Retro {
                 lastX=e.getX();
             }
             if(action==MotionEvent.ACTION_UP){
-                if(!multiple&&!moved){targetStart=dragMode==0?targetStart:dragMode==1;place(timeAt(e.getX()),targetStart);performClick();}
+                if(!multiple&&!moved){if(placing){targetStart=dragMode==0?targetStart:dragMode==1;place(timeAt(e.getX()),targetStart);}else if(seek!=null)seek.accept(timeAt(e.getX()));performClick();}
                 getParent().requestDisallowInterceptTouchEvent(false);changed();return true;
             }
             if(action==MotionEvent.ACTION_CANCEL){getParent().requestDisallowInterceptTouchEvent(false);changed();}return true;
