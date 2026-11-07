@@ -30,6 +30,12 @@ for artifact in ['smart-exception-java','smart-exception-common']:
     with zipfile.ZipFile(io.BytesIO(data)) as jar:
         header=next(jar.read(n).decode().split('*/')[0]+'*/' for n in jar.namelist() if n.endswith('.java'))
         (ASSETS/(artifact+'-BSD-3-Clause.txt')).write_text(header,encoding='utf-8')
+# The AAR also redistributes the NDK libc++ runtime. Preserve LLVM's runtime notices.
+runtime_notices=[]
+for component in ['libcxx','libcxxabi','libunwind']:
+    url=f'https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-18.1.8/{component}/LICENSE.TXT'
+    data=fetch(url);runtime_notices.append((component,url,data))
+    (ASSETS/(component+'-LICENSE.txt')).write_bytes(data)
 index=[]
 with zipfile.ZipFile(OUT/'android-third-party-sources.zip','w',zipfile.ZIP_DEFLATED) as z:
     for name,url,data in items:
@@ -44,6 +50,8 @@ with zipfile.ZipFile(OUT/'android-third-party-sources.zip','w',zipfile.ZIP_DEFLA
     for name,url,data in smart_sources:
         z.writestr(name+'-0.2.1-sources.jar',data)
         index.append({'name':name,'url':url,'sha256':hashlib.sha256(data).hexdigest()})
+    for name,url,data in runtime_notices:
+        z.writestr('runtime-notices/'+name+'-LICENSE.txt',data)
     z.writestr('SOURCES.json',json.dumps(index,indent=2))
     z.write(ROOT/'THIRD_PARTY_NOTICES.md','THIRD_PARTY_NOTICES.md')
 (ASSETS/'LGPL-3.0.txt').write_bytes(member('LICENSE'))

@@ -12,7 +12,8 @@ libraries under LGPL-3.0. FFmpeg copyright belongs to its contributors; FFmpegKi
 created by Taner Sener and is maintained by the ffmpegkit-maintained project.
 The audio build includes LAME, libilbc, Ogg/Vorbis, opencore-amr, Opus, Shine, SoXR,
 Speex, TwoLAME and vo-amrwbenc, each under its own license. smart-exception-java 0.2.1
-is used by the wrapper. License texts and copyright notices are included in APK assets/licenses.
+and smart-exception-common 0.2.1 (BSD-3-Clause) are used by the wrapper. The NDK libc++ runtime
+has LLVM runtime license terms, also included. License texts and copyright notices are included in APK assets/licenses.
 The app's Licenses button opens these notices.
 
 Corresponding upstream source and build scripts are preserved in the release asset

@@ -189,8 +189,8 @@ mod tests {
         assert_eq!(e.filter(),"asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-3:LRA=11,volume=-6.00dB,afade=t=in:st=0:d=1.0000,afade=t=out:st=3.0000:d=2.0000,alimiter=limit=0.95:attack=5:release=50:level=0");
     }
     #[test]
+    #[ignore = "requires FFmpeg; enabled explicitly by Linux CI"]
     fn ffmpeg_export_smoke() {
-        if std::env::var_os("MP3_LAB_AUDIO_TEST").is_none(){return}
         let dir=std::env::temp_dir().join(format!("mp3-lab-test-{}",std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let input=dir.join("source.wav");let output=dir.join("clip.mp3");

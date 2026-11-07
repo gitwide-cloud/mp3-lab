@@ -1,7 +1,7 @@
 import json, pathlib, subprocess, sys, zipfile
 root=pathlib.Path(__file__).resolve().parents[1]
 platform=sys.argv[1]
-metadata=json.loads(subprocess.check_output(['cargo','metadata','--format-version','1'],cwd=root/'desktop'))
+metadata=json.loads(subprocess.check_output(['cargo','metadata','--locked','--format-version','1'],cwd=root/'desktop'))
 with zipfile.ZipFile(root/f'mp3-lab-{platform}.zip','w',zipfile.ZIP_DEFLATED,strict_timestamps=False) as z:
     binary='mp3-lab.exe' if platform=='windows' else 'mp3-lab'
     z.write(root/'desktop/target/release'/binary,binary)
