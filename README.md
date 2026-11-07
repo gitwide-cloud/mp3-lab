@@ -43,7 +43,7 @@ cd android
 gradle :app:assembleDebug
 ```
 
-The app uses `dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.7` to encode audio locally. APK support is ARM64 only.
+The app uses `dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.9` to encode audio locally. APK support is ARM64 only.
 
 ## Development status and limitations
 
