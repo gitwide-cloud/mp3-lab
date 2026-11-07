@@ -9,6 +9,7 @@ curl -fL --retry 3 https://github.com/libsdl-org/SDL/releases/download/release-2
 curl -fL --retry 3 https://codeload.github.com/arthenica/lame/tar.gz/refs/tags/RELEASE__3_100 -o "$work/sources/lame-3.100.tar.gz"
 for f in "$work"/sources/*.tar.gz; do tar xf "$f" -C "$work"; done
 cd "$work/lame-RELEASE__3_100"
+autoreconf -fiv
 ./configure --host=x86_64-w64-mingw32 --prefix="$prefix" --disable-shared --enable-static --disable-frontend
 make -j4
 make install
