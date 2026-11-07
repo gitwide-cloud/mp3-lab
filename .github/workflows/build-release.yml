@@ -190,5 +190,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release create "v0.2.2-preview.${{ github.run_number }}" dist/* \
-            --target "${{ github.sha }}" --title "mp3⚡lab Android 0.2.1 — saved sessions and precision trim" --prerelease \
+            --target "${{ github.sha }}" --title "mp3⚡lab Android 0.2.2 - playback seeking and verified exports" --prerelease \
             --notes "Android 0.2.2: waveform Seek mode moves actual preview playback; IN/OUT mode places trim points, and zoom/pan/1 ms controls remain available. Preview seeking is limited to the selected clip. Exports explicitly encode 44.1 kHz stereo MP3 at 256 kbps, truncate destination documents and verify the saved audio after closing the output stream. Pixel 7 device tests cover real content-URI export/playback, replacing an existing document, actual player seeking, audio processing, rotation and session recovery. Persistent signing continues from 0.2.1. Older temporary-key previews may require a one-time uninstall: export work first. Windows users: install mp3-lab-setup.exe; all audio tools are included. Portable development remains deferred. Linux requires system FFmpeg. Sources, notices, screenshots and SHA256SUMS.txt are attached."
+
