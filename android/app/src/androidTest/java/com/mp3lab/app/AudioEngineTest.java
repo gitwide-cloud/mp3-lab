@@ -83,7 +83,7 @@ public class AudioEngineTest {
                 deadline=android.os.SystemClock.uptimeMillis()+30000;
                 while(activity.busy&&android.os.SystemClock.uptimeMillis()<deadline)Thread.sleep(50);
                 InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
-                    assertNotNull(activity.player);activity.player.pause();activity.waveformView.placing=false;activity.waveformView.fit();
+                    assertNotNull(activity.player);activity.player.pause();assertNotNull("Seek mode must be visible",activity.seekTarget);activity.seekTarget.performClick();assertFalse(activity.waveformView.placing);activity.waveformView.fit();
                     Retro.Wave w=activity.waveformView;float x=w.getWidth()*4.0f/8,y=w.getHeight()*.4f;long now=android.os.SystemClock.uptimeMillis();
                     android.view.MotionEvent down=android.view.MotionEvent.obtain(now,now,0,x,y,0),up=android.view.MotionEvent.obtain(now,now+20,1,x,y,0);
                     w.onTouchEvent(down);w.onTouchEvent(up);down.recycle();up.recycle();

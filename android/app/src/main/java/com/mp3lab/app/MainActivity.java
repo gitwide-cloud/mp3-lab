@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
     void scheduleSessionSave(){handler.removeCallbacks(checkpoint);if(input!=null)handler.postDelayed(checkpoint,180);}
     void refreshZoom(){
         if(zoomLabel!=null)zoomLabel.setText(String.format(Locale.US,"%.1f×   %s – %s",waveformView.zoom,time(waveformView.viewStart),time(waveformView.visibleEnd())));
-        if(inTarget!=null){inTarget.setText(waveformView.targetStart?"IN ✓":"IN");outTarget.setText(waveformView.targetStart?"OUT":"OUT ✓");}
+        if(inTarget!=null){inTarget.setText(waveformView.placing&&waveformView.targetStart?"IN *":"IN");outTarget.setText(waveformView.placing&&!waveformView.targetStart?"OUT *":"OUT");seekTarget.setText(waveformView.placing?"Seek":"Seek *");}
     }
     String time(double s){
         int seconds=(int)Math.max(0,s);

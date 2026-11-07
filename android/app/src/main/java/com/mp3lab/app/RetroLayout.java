@@ -40,7 +40,7 @@ final class RetroLayout {
         a.waveformView.viewChanged=()->{a.refreshZoom();a.scheduleSessionSave();};
         LinearLayout waveBox=a.column();waveBox.setPadding(a.dp(5),a.dp(6),a.dp(5),a.dp(5));waveBox.setBackground(Retro.plate(false));
         waveBox.addView(a.waveformView,new LinearLayout.LayoutParams(-1,a.dp(176)));
-        LinearLayout zoomControls=new LinearLayout(a);String[] zoomTitles={"IN","OUT","−","+","Fit"};
+        LinearLayout zoomControls=new LinearLayout(a);String[] zoomTitles={"IN","OUT","−","+","Fit","Seek"};
         for(int n=0;n<zoomTitles.length;n++){
             final int which=n;Button button=new Button(a);button.setText(zoomTitles[n]);Retro.button(button);
             button.setContentDescription(new String[]{"Select and focus IN point","Select and focus OUT point","Zoom out","Zoom in","Show whole track","Tap waveform to seek playback"}[n]);
