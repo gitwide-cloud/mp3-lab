@@ -125,7 +125,10 @@ fn command(name:&str)->Command{
 fn clock(sec:f64)->String{let m=(sec/60.0).floor() as u64; format!("{}:{:05.2}",m,sec-(m*60) as f64)}
 fn read_waveform(path:&Path,duration:f64)->Result<Vec<[f32;2]>,String>{
     use std::io::Read;
-    let mut child=command("ffmpeg").args(["-hide_banner","-loglevel","error","-i"]).arg(path).args(["-vn","-ac","2","-ar","48000","-f","f32le","pipe:1"])
+    let info=command("ffprobe").args(["-v","error","-select_streams","a:0","-show_entries","stream=channels","-of","csv=p=0"]).arg(path).output().map_err(|e|e.to_string())?;
+    let mono=String::from_utf8_lossy(&info.stdout).trim()=="1";
+    let mut child=command("ffmpeg").args(["-hide_banner","-loglevel","error","-i"]).arg(path)
+        .args(["-af",if mono{"pan=stereo|c0=c0|c1=c0"}else{"anull"},"-vn","-ac","2","-ar","48000","-f","f32le","pipe:1"])
         .stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|e|e.to_string())?;
     let mut stream=std::io::BufReader::new(child.stdout.take().unwrap());let mut frame=[0u8;8];let mut bins=vec![[0.0f32;2];1600];let mut index=0usize;
     while stream.read_exact(&mut frame).is_ok(){
