@@ -156,11 +156,17 @@ impl eframe::App for Editor{
     skin::draw(self,ui);
     if let Some(path)=std::env::var_os("MP3_LAB_SCREENSHOT"){
         use eframe::icon_data::IconDataExt;
-        let screenshot=ctx.input(|i|i.events.iter().find_map(|event|if let egui::Event::Screenshot{image,..}=event{Some(image.clone())}else{None}));
-        if let Some(image)=screenshot{
-            let icon=egui::IconData{width:image.size[0] as u32,height:image.size[1] as u32,rgba:image.pixels.iter().flat_map(|c|c.to_array()).collect()};
-            if let Ok(bytes)=icon.to_png_bytes(){let _=std::fs::write(path,bytes);}ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        }else if self.wave_job.is_none(){self.screenshot_frames+=1;if self.screenshot_frames==10{ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));}ctx.request_repaint_after(Duration::from_millis(60));}
+        if self.wave_job.is_none(){
+            self.screenshot_frames+=1;
+            if self.screenshot_frames==10{
+                let context=ctx.clone();
+                ctx.request_screenshot(move|image|{
+                    let icon=egui::IconData{width:image.size[0] as u32,height:image.size[1] as u32,rgba:image.pixels.iter().flat_map(|c|c.to_array()).collect()};
+                    if let Ok(bytes)=icon.to_png_bytes(){let _=std::fs::write(path,bytes);}context.send_viewport_cmd(egui::ViewportCommand::Close);context.request_repaint();
+                });
+            }
+            ctx.request_repaint_after(Duration::from_millis(60));
+        }
     }
  }
 }

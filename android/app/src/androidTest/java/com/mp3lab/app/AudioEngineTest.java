@@ -53,7 +53,9 @@ public class AudioEngineTest {
             InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
                 android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(activity.root.getWidth(),activity.root.getHeight(),android.graphics.Bitmap.Config.ARGB_8888);
                 activity.root.draw(new android.graphics.Canvas(bitmap));
-                try(java.io.FileOutputStream image=new java.io.FileOutputStream(new File(activity.getExternalFilesDir(null),"android-skin.png"))){bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,image);}catch(Exception e){throw new RuntimeException(e);}
+                String outputDir=InstrumentationRegistry.getArguments().getString("additionalTestOutputDir",activity.getExternalFilesDir(null).toString());
+                File imageDir=new File(outputDir);imageDir.mkdirs();
+                try(java.io.FileOutputStream image=new java.io.FileOutputStream(new File(imageDir,"android-skin.png"))){bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,image);}catch(Exception e){throw new RuntimeException(e);}
                 bitmap.recycle();
             });
             android.media.MediaPlayer player=new android.media.MediaPlayer();

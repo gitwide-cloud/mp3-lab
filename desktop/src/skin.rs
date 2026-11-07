@@ -30,13 +30,13 @@ fn chrome(ui:&mut egui::Ui,text:&str,size:Vec2)->egui::Response{
 fn heading(ui:&mut egui::Ui,text:&str){ui.label(RichText::new(text).size(18.0).strong().color(BLUE));ui.add_space(5.0);}
 fn well<R>(ui:&mut egui::Ui,body:impl FnOnce(&mut egui::Ui)->R)->egui::InnerResponse<R>{egui::Frame::new().fill(C::from_rgb(1,12,5)).stroke(Stroke::new(2.0,C::from_gray(92))).corner_radius(4).inner_margin(12).show(ui,body)}
 pub fn configure(ctx:&egui::Context){
-    let mut style=(*ctx.style()).clone();let mut v=egui::Visuals::dark();
+    let mut style=(*ctx.global_style()).clone();let mut v=egui::Visuals::dark();
     v.panel_fill=C::from_rgb(18,21,28);v.window_fill=C::from_rgb(35,39,46);v.extreme_bg_color=C::from_rgb(7,10,14);
     v.override_text_color=Some(C::from_rgb(236,237,232));v.selection.bg_fill=C::from_rgb(39,88,198);v.selection.stroke=Stroke::new(1.0,BLUE);
     for w in [&mut v.widgets.inactive,&mut v.widgets.hovered,&mut v.widgets.active]{w.corner_radius=2.into();w.bg_stroke=Stroke::new(1.0,C::from_gray(103));}
     v.widgets.inactive.bg_fill=C::from_rgb(14,18,23);v.widgets.active.bg_fill=C::from_rgb(48,92,192);v.widgets.hovered.bg_fill=C::from_rgb(50,58,72);
     style.visuals=v;style.spacing.item_spacing=egui::vec2(8.0,7.0);style.spacing.interact_size.y=27.0;style.spacing.slider_width=170.0;
-    style.text_styles.insert(egui::TextStyle::Body,FontId::proportional(16.0));style.text_styles.insert(egui::TextStyle::Button,FontId::proportional(16.0));ctx.set_style(style);
+    style.text_styles.insert(egui::TextStyle::Body,FontId::proportional(16.0));style.text_styles.insert(egui::TextStyle::Button,FontId::proportional(16.0));ctx.set_global_style(style);
 }
 pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
     let ctx=ui.ctx().clone();
@@ -63,7 +63,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
         });});
         ui.horizontal(|ui|{
             let width=ui.available_width();
-            ui.allocate_ui(egui::vec2(width*.64,96.0),|ui|{well(ui,|ui|{
+            ui.allocate_ui(egui::vec2(width*0.64,96.0),|ui|{well(ui,|ui|{
                 ui.set_min_width(ui.available_width()-4.0);
                 let pos=if e.player.is_some()||e.paused{(e.preview_start+e.elapsed()).min(e.preview_end)}else{e.start};
                 ui.label(RichText::new(format!("{} / {}",clock(pos),clock(e.duration))).monospace().size(29.0).color(GREEN));
@@ -71,7 +71,7 @@ pub fn draw(e:&mut Editor,ui:&mut egui::Ui){
                 ui.label(RichText::new(title).monospace().size(18.0).color(GREEN));
                 ui.label(RichText::new("MP3  •  256 kbps export").monospace().color(GREEN));
             });});
-            ui.allocate_ui(egui::vec2((width*.36-12.0).max(100.0),96.0),|ui|{well(ui,|ui|{
+            ui.allocate_ui(egui::vec2((width*0.36-12.0).max(100.0),96.0),|ui|{well(ui,|ui|{
                 let position=if e.player.is_some(){e.preview_start+e.elapsed()}else{0.0};
                 let bin=if e.duration>0.0{((position/e.duration)*e.waveform.len() as f64) as usize}else{0};
                 let levels=if e.player.is_some(){e.waveform.get(bin).copied().unwrap_or([0.0;2])}else{[0.0;2]};
@@ -145,7 +145,7 @@ fn waveform(e:&mut Editor,ui:&mut egui::Ui){
     if e.duration>0.0{
         let a=wave.left()+(e.start/e.duration) as f32*wave.width();let b=wave.left()+(e.end/e.duration) as f32*wave.width();
         gradient(ui.painter(),Rect::from_min_max(egui::pos2(a,wave.top()),egui::pos2(b,wave.bottom())),C::from_rgb(16,70,24),C::from_rgb(3,36,10));
-        for(i,peaks) in e.waveform.iter().enumerate(){let x=wave.left()+(i as f32+.5)*wave.width()/e.waveform.len() as f32;let height=peaks[0].max(peaks[1]).min(1.0)*wave.height()*.46;ui.painter().vline(x,(wave.center().y-height)..=(wave.center().y+height),Stroke::new(1.0,GREEN));}
+        for(i,peaks) in e.waveform.iter().enumerate(){let x=wave.left()+(i as f32+0.5)*wave.width()/e.waveform.len() as f32;let height=peaks[0].max(peaks[1]).min(1.0)*wave.height()*0.46;ui.painter().vline(x,(wave.center().y-height)..=(wave.center().y+height),Stroke::new(1.0,GREEN));}
         for x in [a,b]{ui.painter().vline(x,wave.y_range(),Stroke::new(2.0,GOLD));ui.painter().rect_filled(Rect::from_min_size(egui::pos2((x-3.0).clamp(wave.left(),wave.right()-6.0),wave.top()),egui::vec2(6.0,12.0)),0.0,GOLD);ui.painter().rect_filled(Rect::from_min_size(egui::pos2((x-3.0).clamp(wave.left(),wave.right()-6.0),wave.bottom()-12.0),egui::vec2(6.0,12.0)),0.0,GOLD);}
         if e.player.is_some()||e.paused{let x=wave.left()+((e.preview_start+e.elapsed())/e.duration) as f32*wave.width();ui.painter().vline(x,wave.y_range(),Stroke::new(1.0,C::WHITE));}
         if response.clicked()||response.dragged(){if let Some(pos)=response.interact_pointer_pos(){let t=((pos.x-wave.left())/wave.width()).clamp(0.0,1.0) as f64*e.duration;if (pos.x-a).abs()<(pos.x-b).abs(){e.start=t.min(e.end)}else{e.end=t.max(e.start)}e.clamp();}}
