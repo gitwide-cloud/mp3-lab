@@ -1,0 +1,22 @@
+name: Build bundled Windows audio tools
+on:
+  workflow_dispatch:
+  push:
+    paths: ['tools/build_windows_audio.sh', '.github/workflows/windows-audio.yml']
+jobs:
+  audio:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 make nasm pkg-config
+      - name: Build LGPL FFmpeg, LAME and SDL2
+        run: bash tools/build_windows_audio.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-audio-runtime
+          path: windows-runtime/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-audio-sources
+          path: dist/windows-audio-sources.tar.gz
